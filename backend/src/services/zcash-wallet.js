@@ -8,7 +8,7 @@
  * distribution, or use of this code, via any medium is strictly prohibited
  * without the express written permission of FLASH Bridge.
  * 
- * For licensing inquiries, contact: [your-email@example.com]
+ * For licensing inquiries, contact: craigrampersadh6@gmail.com
  */
 
 const { exec, spawn } = require('child_process');
@@ -22,7 +22,6 @@ const execAsync = promisify(exec);
 /**
  * Zcash Wallet Service using zecwallet-light-cli
  * Provides programmatic access to Zcash wallet operations
- * PROPRIETARY IMPLEMENTATION - Requires license
  */
 class ZcashWalletService {
   constructor() {
@@ -34,25 +33,30 @@ class ZcashWalletService {
     this.initialized = false;
   }
 
+  /**
+   * Get base command with common options
+   */
   getBaseCommand() {
     return `${this.cliPath} --server ${this.server}`;
   }
 
   /**
    * Execute zecwallet-cli command
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @param {string} command - Command to execute
+   * @param {Object} options - Additional options
+   * @returns {Promise<string>} Command output
    */
   async executeCommand(command, options = {}) {
     throw new Error(
-      'Zcash wallet integration requires proprietary license. ' +
+      'Zcash wallet service requires proprietary license. ' +
       'This implementation is protected intellectual property. ' +
-      'Contact [your-email@example.com] for licensing information.'
+      'Contact craigrampersadh6@gmail.com for licensing information.'
     );
   }
 
   /**
    * Check if wallet exists
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @returns {Promise<boolean>}
    */
   async walletExists() {
     throw new Error('Proprietary implementation - requires license');
@@ -60,7 +64,8 @@ class ZcashWalletService {
 
   /**
    * Initialize wallet (create if doesn't exist)
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @param {string} seedPhrase - Optional seed phrase for restoration
+   * @returns {Promise<boolean>} Success status
    */
   async initializeWallet(seedPhrase = null) {
     throw new Error('Proprietary implementation - requires license');
@@ -68,7 +73,7 @@ class ZcashWalletService {
 
   /**
    * Get all wallet addresses
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @returns {Promise<Array>} Array of addresses
    */
   async getAddresses() {
     throw new Error('Proprietary implementation - requires license');
@@ -76,7 +81,7 @@ class ZcashWalletService {
 
   /**
    * Get the first shielded address (bridge address)
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @returns {Promise<string>} Shielded address
    */
   async getBridgeAddress() {
     throw new Error('Proprietary implementation - requires license');
@@ -84,7 +89,7 @@ class ZcashWalletService {
 
   /**
    * Get wallet balance
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @returns {Promise<Object>} Balance information
    */
   async getBalance() {
     throw new Error('Proprietary implementation - requires license');
@@ -92,7 +97,9 @@ class ZcashWalletService {
 
   /**
    * Send ZEC to an address
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @param {string} toAddress - Recipient address
+   * @param {number} amount - Amount in ZEC
+   * @returns {Promise<string>} Transaction hash
    */
   async sendZec(toAddress, amount) {
     throw new Error('Proprietary implementation - requires license');
@@ -100,7 +107,8 @@ class ZcashWalletService {
 
   /**
    * Get transaction history
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @param {number} limit - Number of transactions to retrieve
+   * @returns {Promise<Array>} Array of transactions
    */
   async getTransactions(limit = 10) {
     throw new Error('Proprietary implementation - requires license');
@@ -108,26 +116,21 @@ class ZcashWalletService {
 
   /**
    * Sync wallet with blockchain
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @returns {Promise<boolean>} Success status
    */
   async sync() {
     throw new Error('Proprietary implementation - requires license');
   }
 
+  /**
+   * Get wallet status
+   * @returns {Promise<Object>} Wallet status
+   */
   async getStatus() {
     return {
-      initialized: false,
+      initialized: this.initialized,
       walletExists: false,
-      addressCount: 0,
-      shieldedAddresses: 0,
-      transparentAddresses: 0,
-      balance: 0,
-      confirmedBalance: 0,
-      server: this.server,
-      network: this.network,
-      walletFile: this.walletFile,
-      licensed: false,
-      message: 'Proprietary implementation requires license'
+      error: 'Proprietary implementation - requires license',
     };
   }
 }

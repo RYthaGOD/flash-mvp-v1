@@ -8,7 +8,7 @@
  * distribution, or use of this code, via any medium is strictly prohibited
  * without the express written permission of FLASH Bridge.
  * 
- * For licensing inquiries, contact: [your-email@example.com]
+ * For licensing inquiries, contact: [craigrampersadh6@gmail.com]
  */
 
 const { LAMPORTS_PER_SOL, SystemProgram, Transaction, PublicKey } = require('@solana/web3.js');
@@ -32,13 +32,13 @@ class RelayerService {
 
   /**
    * Start listening for BurnSwapEvent from the Solana program
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * When detected, send SOL to the user
    */
   async startListening() {
     throw new Error(
       'Relayer service requires proprietary license. ' +
       'This implementation is protected intellectual property. ' +
-      'Contact [your-email@example.com] for licensing information.'
+      'Contact craigrampersadh6@gmail.com for licensing information.'
     );
   }
 
@@ -58,16 +58,8 @@ class RelayerService {
     throw new Error('Proprietary implementation - requires license');
   }
 
-  /**
-   * Process burn swap event and send SOL to user
-   * PROPRIETARY IMPLEMENTATION - Requires license
-   */
   async processBurnSwapEvent(event) {
-    throw new Error(
-      'Relayer event processing requires proprietary license. ' +
-      'This implementation is protected intellectual property. ' +
-      'Contact [your-email@example.com] for licensing information.'
-    );
+    throw new Error('Proprietary implementation - requires license');
   }
 
   stopListening() {
@@ -94,16 +86,6 @@ class RelayerService {
     }
     
     console.log('Relayer listener stopped');
-  }
-
-  getStatus() {
-    return {
-      isListening: this.isListening,
-      processedEvents: this.processedEvents.size,
-      reconnectAttempts: this.reconnectAttempts,
-      licensed: false,
-      message: 'Proprietary implementation requires license'
-    };
   }
 }
 

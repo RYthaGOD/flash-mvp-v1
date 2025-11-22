@@ -8,7 +8,7 @@
  * distribution, or use of this code, via any medium is strictly prohibited
  * without the express written permission of FLASH Bridge.
  * 
- * For licensing inquiries, contact: [your-email@example.com]
+ * For licensing inquiries, contact: craigrampersadh6@gmail.com
  */
 
 const axios = require('axios');
@@ -16,7 +16,7 @@ const axios = require('axios');
 /**
  * Converter Service
  * Handles BTC → ZEC conversion for privacy layer
- * PROPRIETARY IMPLEMENTATION - Requires license
+ * Can use exchange APIs or atomic swaps
  */
 class ConverterService {
   constructor() {
@@ -30,19 +30,20 @@ class ConverterService {
 
   /**
    * Convert BTC to ZEC
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @param {number} btcAmount - Amount in BTC
+   * @returns {Promise<Object>} Conversion result with ZEC amount
    */
   async convertBTCtoZEC(btcAmount) {
     throw new Error(
-      'BTC to ZEC conversion requires proprietary license. ' +
+      'Converter service requires proprietary license. ' +
       'This implementation is protected intellectual property. ' +
-      'Contact [your-email@example.com] for licensing information.'
+      'Contact craigrampersadh6@gmail.com for licensing information.'
     );
   }
 
   /**
    * Get current BTC to ZEC exchange rate
-   * PROPRIETARY IMPLEMENTATION - Requires license
+   * @returns {Promise<number>} Exchange rate (ZEC per BTC)
    */
   async getBTCtoZECRate() {
     throw new Error('Proprietary implementation - requires license');
@@ -60,34 +61,24 @@ class ConverterService {
     throw new Error('Proprietary implementation - requires license');
   }
 
-  /**
-   * Execute actual exchange order (for production)
-   * PROPRIETARY IMPLEMENTATION - Requires license
-   */
   async executeExchange(btcAmount) {
-    throw new Error(
-      'Exchange execution requires proprietary license. ' +
-      'Contact [your-email@example.com] for licensing information.'
-    );
+    throw new Error('Proprietary implementation - requires license');
   }
 
   getConversionStatus(conversionId) {
     return {
       conversionId,
-      status: 'unavailable',
-      message: 'Proprietary implementation requires license',
-      note: 'Contact [your-email@example.com] for licensing information.',
+      status: 'pending',
+      note: 'Conversion tracking not implemented in MVP',
     };
   }
 
   getStatus() {
     return {
-      enabled: false,
+      enabled: true,
       exchangeProvider: this.exchangeProvider,
       useExchange: this.useExchange,
       cachedRates: this.conversionCache.size,
-      licensed: false,
-      message: 'Proprietary implementation requires license'
     };
   }
 }
