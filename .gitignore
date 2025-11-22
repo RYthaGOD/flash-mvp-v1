@@ -1,0 +1,101 @@
+# Environment Variables (CRITICAL - Contains secrets)
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+**/.env
+
+# Keypair Files (CRITICAL - Contains private keys)
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!*.config.json
+!**/tsconfig*.json
+**/id.json
+**/*keypair*.json
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+~/.config/solana/id.json
+**/.config/solana/id.json
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+backend/database/*.db
+backend/database/*.sqlite
+*.dump
+*.sql.backup
+
+# Node Modules
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Build Artifacts
+dist/
+build/
+target/
+*.wasm
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Solana Program Build
+programs/**/target/
+target/
+**/target/idl/
+**/target/deploy/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+desktop.ini
+.directory
+
+# Logs
+*.log
+logs/
+**/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.temp/
+
+# PostgreSQL
+*.sql.backup
+*.dump
+pgdata/
+postgres-data/
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Misc
+*.pid
+*.seed
+*.pid.lock
+

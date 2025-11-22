@@ -1,0 +1,17 @@
+{
+  "name": "flash-bridge-backtest",
+  "version": "1.0.0",
+  "description": "Backtest suite for FLASH Bridge system",
+  "main": "backtest.js",
+  "scripts": {
+    "test": "node backtest.js",
+    "backtest": "node backtest.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "@solana/web3.js": "^1.87.0",
+    "@coral-xyz/anchor": "^0.32.1",
+    "dotenv": "^16.3.1"
+  }
+}
+

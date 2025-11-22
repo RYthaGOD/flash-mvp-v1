@@ -1,0 +1,27 @@
+{
+  "name": "flash-mvp",
+  "version": "1.0.0",
+  "description": "FLASH — BTC → ZEC (shielded) → Solana Bridge (MVP)",
+  "private": true,
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install && cd ../backtest && npm install",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm start",
+    "build:frontend": "cd frontend && npm run build",
+    "build:program": "anchor build",
+    "test:program": "anchor test",
+    "deploy:localnet": "anchor deploy",
+    "setup": "./scripts/setup-localnet.sh",
+    "backtest": "cd backtest && node backtest.js",
+    "test": "cd backtest && npm test"
+  },
+  "keywords": [
+    "solana",
+    "bridge",
+    "zcash",
+    "bitcoin",
+    "defi"
+  ],
+  "author": "",
+  "license": "MIT"
+}

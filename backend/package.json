@@ -1,0 +1,39 @@
+{
+  "name": "flash-mvp-backend",
+  "version": "1.0.0",
+  "description": "Backend server for Flash MVP Solana application",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest",
+    "migrate": "node database/migrate.js",
+    "test-db": "node database/test-db.js",
+    "check-db": "node database/check-setup.js",
+    "setup-postgres": "powershell -ExecutionPolicy Bypass -File setup-postgres.ps1"
+  },
+  "keywords": [
+    "solana",
+    "bridge",
+    "backend"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/spl-token": "^0.4.0",
+    "@solana/web3.js": "^1.87.0",
+    "axios": "^1.6.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0",
+    "pg": "^8.11.3",
+    "pg-hstore": "^2.3.4"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.1"
+  }
+}

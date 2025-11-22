@@ -1,0 +1,134 @@
+const zcashWallet = require('./zcash-wallet');
+const zcashService = require('./zcash');
+
+/**
+ * Zcash Transaction Monitor
+ * Monitors wallet for incoming ZEC payments and triggers bridge minting
+ */
+class ZcashMonitor {
+  constructor() {
+    this.isMonitoring = false;
+    this.monitoringInterval = null;
+    this.processedTransactions = new Set();
+    this.lastCheckedBlock = null;
+    this.callbacks = [];
+  }
+
+  /**
+   * Start monitoring for incoming ZEC payments
+   * @param {Function} callback - Called when new payment detected
+   */
+  async startMonitoring(callback) {
+    if (this.isMonitoring) {
+      console.log('Zcash monitoring already started');
+      return;
+    }
+
+    if (process.env.USE_ZECWALLET_CLI !== 'true') {
+      console.warn('Zcash wallet not enabled. Set USE_ZECWALLET_CLI=true to enable monitoring');
+      return;
+    }
+
+    if (callback) {
+      this.callbacks.push(callback);
+    }
+
+    this.isMonitoring = true;
+    console.log('Starting Zcash transaction monitoring...');
+
+    // Initial sync
+    try {
+      await zcashWallet.sync();
+    } catch (error) {
+      console.warn('Initial wallet sync failed:', error.message);
+    }
+
+    // Poll for new transactions every 60 seconds
+    this.monitoringInterval = setInterval(async () => {
+      await this.checkForNewPayments();
+    }, 60000); // Check every minute
+
+    // Also check immediately
+    await this.checkForNewPayments();
+  }
+
+  /**
+   * Stop monitoring
+   */
+  stopMonitoring() {
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = null;
+    }
+    this.isMonitoring = false;
+    this.callbacks = [];
+    console.log('Zcash monitoring stopped');
+  }
+
+  /**
+   * Check for new payments to bridge address
+   */
+  async checkForNewPayments() {
+    if (!this.isMonitoring) return;
+
+    try {
+      // Get recent transactions from wallet
+      const transactions = await zcashWallet.getTransactions(50);
+      const bridgeAddress = await zcashService.getBridgeAddress();
+
+      for (const tx of transactions) {
+        // Skip if already processed
+        if (this.processedTransactions.has(tx.txHash)) {
+          continue;
+        }
+
+        // Verify transaction is to bridge address
+        // In production, this would parse transaction outputs
+        // For MVP, we'll verify the transaction exists and is confirmed
+        try {
+          const verification = await zcashService.verifyShieldedTransaction(tx.txHash);
+          
+          if (verification.verified && verification.confirmed) {
+            this.processedTransactions.add(tx.txHash);
+            
+            console.log(`New ZEC payment detected: ${tx.txHash}`);
+            console.log(`Block height: ${verification.blockHeight}`);
+            
+            // Notify callbacks
+            for (const callback of this.callbacks) {
+              try {
+                await callback({
+                  txHash: tx.txHash,
+                  blockHeight: verification.blockHeight,
+                  timestamp: verification.timestamp,
+                  bridgeAddress,
+                  // Amount would be extracted from transaction in production
+                });
+              } catch (error) {
+                console.error('Error in payment callback:', error);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(`Error verifying transaction ${tx.txHash}:`, error.message);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for new payments:', error.message);
+    }
+  }
+
+  /**
+   * Get monitoring status
+   */
+  getStatus() {
+    return {
+      isMonitoring: this.isMonitoring,
+      processedCount: this.processedTransactions.size,
+      callbackCount: this.callbacks.length,
+    };
+  }
+}
+
+module.exports = new ZcashMonitor();
+
