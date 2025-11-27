@@ -112,8 +112,8 @@ graph TD
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/flash-bridge.git
-cd flash-bridge
+git clone https://github.com/RYthaGOD/flash-mvp-v1.git
+cd flash-mvp-v1
 
 # Setup backend
 cd backend
@@ -191,19 +191,18 @@ User sends SOL → zenZEC minted → BTC transferred via relayer
 - **Key Management:** Secure MPC key distribution
 
 ### Code Quality
-- **Test Coverage:** 80%+ unit/integration tests
-- **Documentation:** 13 guides, 7,000+ lines
-- **Type Safety:** TypeScript throughout
-- **Linting:** ESLint + Prettier enforced
+- **Documentation:** Comprehensive guides and API references
+- **Architecture:** Clean separation of concerns
+- **Testing:** Core functionality tested with crash recovery validation
 
 ---
 
 ## 🌟 Why FLASH Bridge?
 
 ### Market Opportunity
-- **Cross-chain bridge market:** $20B+ opportunity
-- **Privacy focus:** <5% of bridges prioritize privacy
-- **Institutional demand:** Banks need private DeFi access
+- **Cross-chain bridge market:** Growing opportunity for privacy-focused solutions
+- **Privacy focus:** Few bridges prioritize user privacy
+- **Institutional demand:** Growing need for private DeFi access
 
 ### Competitive Advantages
 - **Privacy First:** Only bridge with Arcium MPC integration
@@ -222,29 +221,23 @@ User sends SOL → zenZEC minted → BTC transferred via relayer
 ## 🤝 Community & Support
 
 ### Join the Community
-- **GitHub Discussions:** Ask questions, share ideas
-- **Newsletter:** Weekly privacy & cross-chain updates
-
 ### Documentation
-- **[Technical Docs](https://docs.flash-bridge.com)** - Complete API reference
+-
 - **[Architecture Guide](./ARCHITECTURE.md)** - System design
 - **[Privacy Features](./PRIVACY_FEATURES.md)** - Security deep-dive
 - **[Setup Guide](./QUICK_START.md)** - Getting started
 
-### Support
-- **GitHub Issues:** Bug reports & feature requests
-- **Email:** team@flash-bridge.com
-- **Live Chat:** Discord #support channel
+
 
 ---
 
 ## 📊 Project Status
 
 ### ✅ MVP Complete
-- **Core Features:** 100% functional
-- **Privacy:** Fully implemented
-- **Demo:** Production-ready
-- **Documentation:** Comprehensive
+- **Core Features:** Bridge transactions with cryptographic proofs
+- **Privacy:** Arcium MPC encryption implemented
+- **Crash Prevention:** Enterprise-grade stability features
+- **Documentation:** Comprehensive setup and architecture guides
 
 ### 🚧 Production Roadmap
 - **Q1 2025:** Security audit & mainnet deployment
@@ -252,19 +245,9 @@ User sends SOL → zenZEC minted → BTC transferred via relayer
 - **Q3 2025:** Enterprise features & API marketplace
 - **Q4 2025:** Decentralized relayer network
 
-### 🎯 Funding Status
-- **Bootstrapped:** No external funding required
-- **Grant Applications:** Multiple submissions pending
-- **Revenue Model:** Freemium API + enterprise licensing
-
----
-
-## 🏆 Awards & Recognition
-
-- **🏅 Hackathon Winner** - ETHGlobal 2025 (Privacy Category)
-- **🥈 Runner-up** - Solana Hacker House 2025
-- **🏆 Innovation Award** - Zcash Privacy Conference 2025
-- **💎 Technical Excellence** - Gitcoin Quadratic Funding Round
+### 🎯 Project Status
+- **MVP Complete:** Core functionality implemented
+- **Open Source:** MIT licensed for community contributions
 
 ---
 
@@ -281,8 +264,8 @@ We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guideline
 
 ### Development Setup
 ```bash
-git clone https://github.com/yourusername/flash-bridge.git
-cd flash-bridge
+git clone https://github.com/RYthaGOD/flash-mvp-v1.git
+cd flash-mvp-v1
 npm run setup  # One-command setup
 npm run dev    # Development mode
 ```
@@ -306,15 +289,6 @@ npm run dev    # Development mode
 
 ---
 
-## 📞 Contact
-
-**Team FLASH Bridge**
-- **Email:** team@flash-bridge.com
-- **LinkedIn:** [Flash Bridge](https://linkedin.com/company/flash-bridge)
-
----
-
-<div align="center">
 
 **Built with ❤️ for the privacy-preserving future of cross-chain DeFi**
 
@@ -907,6 +881,12 @@ This is a hackathon MVP. Contributions welcome!
 ## Support
 
 For issues and questions, please open a GitHub issue.
+
+---
+
+## Contact
+
+**Twitter:** [@moneybag_fin](https://twitter.com/moneybag_fin)
 
 ---
 
