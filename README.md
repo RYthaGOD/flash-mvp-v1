@@ -7,11 +7,7 @@
 ![Arcium MPC](https://img.shields.io/badge/Arcium-MPC-purple?style=for-the-badge)
 ![Solana Powered](https://img.shields.io/badge/Solana-Powered-9945FF?style=for-the-badge&logo=solana)
 
-**BTC → ZEC (Shielded) → Solana Bridge with End-to-End Privacy**
-
-[🎬 Watch Demo Video](https://youtu.be/your-demo-link) • [🌐 Live Demo](https://flash-bridge.vercel.app) • [📖 Documentation](https://docs.flash-bridge.com)
-
-</div>
+**BTC → ZEC (Shielded) → Solana Bridge with End-to-End Privcy
 
 ---
 
