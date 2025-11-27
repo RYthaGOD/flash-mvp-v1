@@ -11,8 +11,6 @@
 
 *Institutional-Grade Cryptographic Proofs & Enterprise Stability*
 
-</div>
-
 ---
 
 ## 🚀 What is FLASH Bridge?
