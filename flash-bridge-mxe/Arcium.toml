@@ -1,0 +1,57 @@
+# Arcium Configuration for FLASH Bridge MXE
+# Based on Arcium Hello World documentation
+
+[package]
+name = "flash-bridge-mxe"
+version = "0.1.0"
+description = "Custom MXE for FLASH Bridge privacy operations"
+edition = "2021"
+
+[dependencies]
+anchor-lang = "0.29.0"
+anchor-spl = "0.29.0"
+arcium-anchor = "0.1.0"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+event-cpi = []
+
+[workspace]
+members = []
+
+[profile.release]
+overflow-checks = true
+
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+
+[arcium]
+cluster = "devnet"
+mxe_id = "flash_bridge_privacy"
+computation_timeout = 30000
+privacy_level = "maximum"
+
+[[encrypted_instructions]]
+name = "encrypt_bridge_amount"
+path = "encrypted-ixs/bridge_privacy.rs"
+function = "encrypt_bridge_amount"
+
+[[encrypted_instructions]]
+name = "verify_bridge_transaction"
+path = "encrypted-ixs/bridge_privacy.rs"
+function = "verify_bridge_transaction"
+
+[[encrypted_instructions]]
+name = "calculate_swap_amount"
+path = "encrypted-ixs/bridge_privacy.rs"
+function = "calculate_swap_amount"
+
+[[encrypted_instructions]]
+name = "encrypt_btc_address"
+path = "encrypted-ixs/bridge_privacy.rs"
+function = "encrypt_btc_address"

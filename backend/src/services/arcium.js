@@ -353,7 +353,7 @@ class ArciumService {
     //   privacyLevel: this.privacyLevel
     // });
 
-    throw new Error('Real Arcium SDK not yet implemented');
+    throw new Error('Real Arcium SDK not yet implemented - use simulation mode');
   }
 
   /**
@@ -422,6 +422,16 @@ class ArciumService {
     if (!this.mpcEnabled) {
       throw new Error('❌ Privacy required: Cannot verify amounts without MPC');
     }
+
+    const cacheKey = `verify_${encryptedAmount1.computationId}_${encryptedAmount2.computationId}`;
+    const cached = this._getCached(cacheKey);
+    if (cached) {
+      this.metrics.cacheHits++;
+      return cached;
+    }
+
+    this.metrics.cacheMisses++;
+    this.metrics.computations++;
 
     try {
       console.log('Verifying encrypted amounts match via MPC');
@@ -619,6 +629,16 @@ class ArciumService {
       throw new Error('❌ Privacy required: Cannot calculate on encrypted data without MPC');
     }
 
+    const cacheKey = `swap_calc_${encryptedZenZEC.computationId}_${exchangeRate}`;
+    const cached = this._getCached(cacheKey);
+    if (cached) {
+      this.metrics.cacheHits++;
+      return cached;
+    }
+
+    this.metrics.cacheMisses++;
+    this.metrics.computations++;
+
     try {
       console.log('Calculating swap amount on encrypted value');
 
@@ -628,7 +648,7 @@ class ArciumService {
       // 3. Return encrypted SOL amount
 
       const computationId = `swap_calc_${Date.now()}`;
-      
+
       // Simulate MPC computation
       const mockResult = {
         encrypted: true,
@@ -665,6 +685,16 @@ class ArciumService {
       throw new Error('❌ Privacy required: Cannot verify Zcash transaction without MPC');
     }
 
+    const cacheKey = `verify_zcash_${txHash}_${encryptedExpectedAmount.computationId}`;
+    const cached = this._getCached(cacheKey);
+    if (cached) {
+      this.metrics.cacheHits++;
+      return cached;
+    }
+
+    this.metrics.cacheMisses++;
+    this.metrics.computations++;
+
     try {
       console.log(`Private verification of Zcash TX: ${txHash}`);
 
@@ -674,7 +704,7 @@ class ArciumService {
       // 3. Return verification result without revealing amounts
 
       const computationId = `verify_zcash_${Date.now()}`;
-      
+
       const result = {
         verified: true,
         private: true,
@@ -788,6 +818,16 @@ class ArciumService {
       throw new Error('❌ Privacy required: BTC addresses must be encrypted via MPC');
     }
 
+    const cacheKey = `encrypt_btc_${btcAddress}_${recipientPubkey}`;
+    const cached = this._getCached(cacheKey);
+    if (cached) {
+      this.metrics.cacheHits++;
+      return cached;
+    }
+
+    this.metrics.cacheMisses++;
+    this.metrics.computations++;
+
     try {
       console.log(`🔒 Encrypting BTC address: ${btcAddress.substring(0, 10)}...`);
 
@@ -816,7 +856,7 @@ class ArciumService {
   /**
    * Decrypt BTC address (for relayer)
    * ALWAYS uses MPC for secure decryption
-   * @param {string} encryptedAddress - Encrypted address data
+   * @param {Object} encryptedAddress - Encrypted address data
    * @param {string} recipientPubkey - Recipient's public key
    * @returns {Promise<string>} Decrypted Bitcoin address
    */
