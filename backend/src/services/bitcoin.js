@@ -1,6 +1,65 @@
 const axios = require('axios');
 
 /**
+ * Circuit Breaker for external API calls
+ * Prevents cascading failures and allows graceful degradation
+ */
+class CircuitBreaker {
+  constructor(failureThreshold = 5, recoveryTimeout = 60000, monitoringPeriod = 10000) {
+    this.failureThreshold = failureThreshold;
+    this.recoveryTimeout = recoveryTimeout;
+    this.monitoringPeriod = monitoringPeriod;
+
+    this.failures = 0;
+    this.lastFailureTime = null;
+    this.state = 'CLOSED'; // CLOSED, OPEN, HALF_OPEN
+  }
+
+  async execute(operation) {
+    if (this.state === 'OPEN') {
+      if (Date.now() - this.lastFailureTime > this.recoveryTimeout) {
+        this.state = 'HALF_OPEN';
+        console.log('🔄 Circuit breaker: Testing recovery');
+      } else {
+        throw new Error('Circuit breaker is OPEN - external service unavailable');
+      }
+    }
+
+    try {
+      const result = await operation();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+
+  onSuccess() {
+    this.failures = 0;
+    this.state = 'CLOSED';
+  }
+
+  onFailure() {
+    this.failures++;
+    this.lastFailureTime = Date.now();
+
+    if (this.failures >= this.failureThreshold) {
+      this.state = 'OPEN';
+      console.warn(`🔴 Circuit breaker: OPEN after ${this.failures} failures`);
+    }
+  }
+
+  getState() {
+    return {
+      state: this.state,
+      failures: this.failures,
+      lastFailure: this.lastFailureTime
+    };
+  }
+}
+
+/**
  * Bitcoin Service
  * Handles Bitcoin blockchain monitoring and payment verification
  * For Cash App user onboarding
@@ -14,6 +73,14 @@ class BitcoinService {
     this.bootstrapAmount = parseFloat(process.env.BOOTSTRAP_BTC || '0') * 100000000; // Convert to satoshis
     this.monitoringInterval = null;
     this.processedTransactions = new Set();
+
+    // Circuit breaker for API calls
+    this.apiCircuitBreaker = new CircuitBreaker(5, 60000, 10000);
+
+    // Health monitoring
+    this.lastApiCall = Date.now();
+    this.apiCallCount = 0;
+    this.apiErrorCount = 0;
   }
 
   /**
@@ -191,20 +258,69 @@ class BitcoinService {
   }
 
   /**
-   * Get transaction from explorer
+   * Get transaction from explorer with circuit breaker protection
    * @param {string} txHash - Transaction hash
    * @returns {Promise<Object>} Transaction data
    */
   async getTransaction(txHash) {
-    try {
-      const response = await axios.get(`${this.explorerUrl}/tx/${txHash}`, {
-        timeout: 10000,
-      });
-      return response.data;
-    } catch (error) {
-      console.error(`Error fetching transaction ${txHash}:`, error.message);
-      throw error;
-    }
+    return await this.apiCircuitBreaker.execute(async () => {
+      try {
+        this.lastApiCall = Date.now();
+        this.apiCallCount++;
+
+        const url = `${this.explorerUrl}/tx/${txHash}`;
+        console.log('BitcoinService.getTransaction calling URL:', url);
+
+        const response = await axios.get(url, {
+          timeout: 10000, // 10 second timeout
+          headers: {
+            'User-Agent': 'FLASH-Bridge/1.0'
+          }
+        });
+
+        console.log('BitcoinService.getTransaction received data');
+        return response.data;
+      } catch (error) {
+        this.apiErrorCount++;
+        console.error(`Error fetching transaction ${txHash}:`, error.message);
+
+        // Re-throw with more context
+        if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+          throw new Error(`Bitcoin API unavailable: ${error.message}`);
+        } else if (error.response?.status === 429) {
+          throw new Error('Bitcoin API rate limited');
+        } else if (error.response?.status >= 500) {
+          throw new Error(`Bitcoin API server error: ${error.response.status}`);
+        } else if (error.code === 'ECONNABORTED') {
+          throw new Error('Bitcoin API timeout');
+        }
+
+        throw error;
+      }
+    });
+  }
+
+  /**
+   * Get service health status
+   */
+  getHealthStatus() {
+    const circuitState = this.apiCircuitBreaker.getState();
+    const uptime = Date.now() - this.lastApiCall;
+
+    return {
+      service: 'bitcoin',
+      healthy: circuitState.state === 'CLOSED',
+      circuitBreaker: circuitState,
+      stats: {
+        totalCalls: this.apiCallCount,
+        errorCount: this.apiErrorCount,
+        errorRate: this.apiCallCount > 0 ? (this.apiErrorCount / this.apiCallCount) * 100 : 0,
+        lastCall: new Date(this.lastApiCall).toISOString(),
+        uptime: Math.round(uptime / 1000) // seconds
+      },
+      network: this.network,
+      bridgeAddress: this.bridgeAddress ? 'configured' : 'not configured'
+    };
   }
 
   /**

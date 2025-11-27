@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS bridge_transactions (
     bitcoin_tx_hash VARCHAR(64),
     zcash_tx_hash VARCHAR(64),
     demo_mode BOOLEAN DEFAULT FALSE,
+    output_token VARCHAR(44), -- Token mint user receives (for BTC deposits)
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -98,6 +99,47 @@ CREATE INDEX IF NOT EXISTS idx_processed_events_type ON processed_events(event_t
 CREATE INDEX IF NOT EXISTS idx_status_history_tx_id ON transaction_status_history(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_status_history_type ON transaction_status_history(transaction_type);
 
+-- Cryptographic Proofs Table
+-- Stores institutional-grade cryptographic proofs for transactions
+CREATE TABLE IF NOT EXISTS cryptographic_proofs (
+    id SERIAL PRIMARY KEY,
+    transaction_id VARCHAR(255) NOT NULL,
+    transaction_type VARCHAR(50) NOT NULL, -- 'bridge', 'swap', 'burn'
+    proof_version VARCHAR(20) NOT NULL DEFAULT '1.0.0',
+    transaction_hash VARCHAR(64) NOT NULL,
+    signature TEXT NOT NULL, -- JSON with signature, public key, algorithm
+    merkle_proof TEXT NOT NULL, -- JSON with Merkle tree proof
+    zk_proof TEXT, -- JSON with ZK proof (optional)
+    chain_of_custody TEXT NOT NULL, -- JSON array of custody steps
+    metadata TEXT NOT NULL, -- JSON with generation metadata
+    expires_at TIMESTAMP, -- When proof expires (for cache management)
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(transaction_id, transaction_type)
+);
+
+-- Proof Verification Attempts Table
+-- Tracks proof verification requests for audit
+CREATE TABLE IF NOT EXISTS proof_verifications (
+    id SERIAL PRIMARY KEY,
+    transaction_id VARCHAR(255) NOT NULL,
+    verifier_address VARCHAR(44), -- Who requested verification
+    verification_result BOOLEAN NOT NULL,
+    verification_reason TEXT,
+    verification_timestamp TIMESTAMP DEFAULT NOW(),
+    ip_address INET,
+    user_agent TEXT
+);
+
+-- Indexes for proof performance
+CREATE INDEX IF NOT EXISTS idx_proofs_tx_id ON cryptographic_proofs(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_proofs_tx_type ON cryptographic_proofs(transaction_type);
+CREATE INDEX IF NOT EXISTS idx_proofs_created_at ON cryptographic_proofs(created_at);
+CREATE INDEX IF NOT EXISTS idx_proofs_expires_at ON cryptographic_proofs(expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_verifications_tx_id ON proof_verifications(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_verifications_timestamp ON proof_verifications(verification_timestamp);
+
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -115,5 +157,9 @@ CREATE TRIGGER update_swap_transactions_updated_at BEFORE UPDATE ON swap_transac
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_burn_transactions_updated_at BEFORE UPDATE ON burn_transactions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger for proof table
+CREATE TRIGGER update_cryptographic_proofs_updated_at BEFORE UPDATE ON cryptographic_proofs
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

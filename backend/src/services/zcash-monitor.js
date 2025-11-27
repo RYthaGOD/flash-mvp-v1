@@ -9,9 +9,35 @@ class ZcashMonitor {
   constructor() {
     this.isMonitoring = false;
     this.monitoringInterval = null;
-    this.processedTransactions = new Set();
+    // Use Map with timestamps for LRU eviction (max 5000 entries)
+    this.processedTransactions = new Map();
+    this.maxProcessedTransactions = 5000;
     this.lastCheckedBlock = null;
     this.callbacks = [];
+  }
+
+  /**
+   * Add transaction to processed set with LRU eviction
+   * @param {string} txHash - Transaction hash
+   */
+  markTransactionProcessed(txHash) {
+    // If at capacity, remove oldest entry
+    if (this.processedTransactions.size >= this.maxProcessedTransactions) {
+      const oldestEntry = this.processedTransactions.entries().next().value;
+      if (oldestEntry) {
+        this.processedTransactions.delete(oldestEntry[0]);
+      }
+    }
+    this.processedTransactions.set(txHash, Date.now());
+  }
+
+  /**
+   * Check if transaction was processed
+   * @param {string} txHash - Transaction hash
+   * @returns {boolean} Whether transaction was processed
+   */
+  isTransactionProcessed(txHash) {
+    return this.processedTransactions.has(txHash);
   }
 
   /**
@@ -78,7 +104,7 @@ class ZcashMonitor {
 
       for (const tx of transactions) {
         // Skip if already processed
-        if (this.processedTransactions.has(tx.txHash)) {
+        if (this.isTransactionProcessed(tx.txHash)) {
           continue;
         }
 
@@ -89,7 +115,7 @@ class ZcashMonitor {
           const verification = await zcashService.verifyShieldedTransaction(tx.txHash);
           
           if (verification.verified && verification.confirmed) {
-            this.processedTransactions.add(tx.txHash);
+            this.markTransactionProcessed(tx.txHash);
             
             console.log(`New ZEC payment detected: ${tx.txHash}`);
             console.log(`Block height: ${verification.blockHeight}`);
@@ -125,6 +151,7 @@ class ZcashMonitor {
     return {
       isMonitoring: this.isMonitoring,
       processedCount: this.processedTransactions.size,
+      maxProcessedTransactions: this.maxProcessedTransactions,
       callbackCount: this.callbacks.length,
     };
   }

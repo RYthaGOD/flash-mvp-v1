@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
+const { PublicKey } = require('@solana/web3.js');
 const solanaService = require('../services/solana');
 const zcashService = require('../services/zcash');
 const bitcoinService = require('../services/bitcoin');
 const converterService = require('../services/converter');
 const databaseService = require('../services/database');
+const jupiterService = require('../services/jupiter');
+const btcDepositHandler = require('../services/btc-deposit-handler');
+const cryptoProofsService = require('../services/crypto-proofs');
 const {
   validateBridgeRequest,
   validateSwapRequest,
@@ -34,9 +38,9 @@ router.get('/info', async (req, res) => {
       status: 'active',
       network: process.env.SOLANA_NETWORK || 'devnet',
       programId: process.env.PROGRAM_ID,
-      zenZECMint: process.env.ZENZEC_MINT || 'Not configured',
+      treasury: 'USDC Treasury + Jupiter Swaps',
       solanaVersion: version,
-      description: 'FLASH BTC→ZEC→Solana Bridge (Cash App Optimized)',
+      description: 'FLASH BTC→USDC→Token Bridge (Cash App Optimized)',
       bitcoin: {
         network: bitcoinInfo.network,
         bridgeAddress: bitcoinInfo.bridgeAddress,
@@ -253,6 +257,44 @@ router.post('/', validateBridgeRequest, asyncHandler(async (req, res) => {
       }
     }
 
+    // Generate cryptographic proof for institutional compliance
+    let cryptographicProof = null;
+    try {
+      const proofData = {
+        txId,
+        solanaAddress,
+        amount: mintAmount / 1e8,
+        reserveAsset,
+        status: mintStatus,
+        solanaTxSignature,
+        bitcoinTxHash: bitcoinTxHash || null,
+        zcashTxHash: zcashTxHash || null,
+        demoMode: isDemoMode,
+        createdAt: Date.now(),
+        verificationPerformed: !isDemoMode,
+        verificationTimestamp: !isDemoMode ? Date.now() : null,
+        minted: mintStatus === 'confirmed',
+        mintTimestamp: mintStatus === 'confirmed' ? Date.now() : null,
+        arciumComputationId: null // Add if using Arcium
+      };
+
+      cryptographicProof = await cryptoProofsService.generateTransactionProof(proofData, 'bridge');
+
+      // Save proof to database
+      if (databaseService.isConnected()) {
+        await databaseService.saveCryptographicProof({
+          transactionId: txId,
+          transactionType: 'bridge',
+          proof: cryptographicProof
+        });
+      }
+
+      console.log(`✓ Cryptographic proof generated for transaction: ${txId}`);
+    } catch (error) {
+      console.error('Error generating cryptographic proof:', error);
+      // Don't fail the request if proof generation fails
+    }
+
     // Prepare response
     const response = {
       success: true,
@@ -261,12 +303,22 @@ router.post('/', validateBridgeRequest, asyncHandler(async (req, res) => {
       solanaAddress,
       swapToSol: swapToSol || false,
       status: mintStatus,
-      message: isDemoMode 
+      message: isDemoMode
         ? 'zenZEC minting initiated (demo mode - no transaction verification)'
         : 'zenZEC minting successful',
       reserveAsset,
       demoMode: isDemoMode,
       solanaTxSignature: solanaTxSignature || null,
+      // Add cryptographic proof for institutional compliance
+      cryptographicProof: cryptographicProof ? {
+        transactionId: txId,
+        transactionHash: cryptographicProof.transactionHash,
+        signature: cryptographicProof.signature,
+        merkleProof: cryptographicProof.merkleProof,
+        verificationUrl: `/api/bridge/proof/${txId}/verify`,
+        auditExportUrl: `/api/bridge/proof/${txId}/audit`,
+        compliance: 'INSTITUTIONAL'
+      } : null,
     };
 
     // Add Bitcoin verification if present
@@ -368,6 +420,113 @@ router.patch('/transaction/:txId/status', validateTxId, asyncHandler(async (req,
   });
 }));
 
+/**
+ * Get cryptographic proof for transaction
+ * GET /api/bridge/proof/:txId?format=full|audit|verification
+ */
+router.get('/proof/:txId', validateTxId, asyncHandler(async (req, res) => {
+  const { txId } = req.params;
+  const { format } = req.query; // 'full', 'audit', 'verification'
+
+  if (!databaseService.isConnected()) {
+    throw new APIError(503, 'Database not available');
+  }
+
+  // Get proof from database
+  const proof = await databaseService.getCryptographicProof(txId, 'bridge');
+
+  if (!proof) {
+    throw new APIError(404, 'Cryptographic proof not found for transaction', {
+      txId,
+      note: 'Proof may not have been generated or may have expired'
+    });
+  }
+
+  // Format response based on requested format
+  switch (format) {
+    case 'audit':
+      return res.json({
+        success: true,
+        auditReport: cryptoProofsService.exportProofForAudit(proof)
+      });
+
+    case 'verification':
+      return res.json({
+        success: true,
+        transactionId: txId,
+        proofData: {
+          transactionHash: proof.transactionHash,
+          signature: proof.signature,
+          merkleRoot: proof.merkleProof.merkleRoot,
+          publicKey: proof.signature.publicKey
+        },
+        verificationInstructions: {
+          endpoint: `/api/bridge/proof/${txId}/verify`,
+          method: 'POST',
+          body: { proof: proof }
+        }
+      });
+
+    case 'full':
+    default:
+      return res.json({
+        success: true,
+        transactionId: txId,
+        proof: proof,
+        compliance: 'INSTITUTIONAL',
+        generatedAt: proof.metadata.generatedAt,
+        expiresAt: proof.expiresAt
+      });
+  }
+}));
+
+/**
+ * Verify cryptographic proof
+ * POST /api/bridge/proof/:txId/verify
+ */
+router.post('/proof/:txId/verify', validateTxId, asyncHandler(async (req, res) => {
+  const { txId } = req.params;
+  const { proof } = req.body;
+
+  if (!proof) {
+    throw new APIError(400, 'Proof data required');
+  }
+
+  // Basic proof validation
+  if (!proof.transactionId || !proof.transactionHash || !proof.signature || !proof.merkleProof) {
+    throw new APIError(400, 'Invalid proof data: missing required fields');
+  }
+
+  if (proof.transactionId !== txId) {
+    throw new APIError(400, 'Proof transaction ID does not match URL parameter');
+  }
+
+  // Verify the proof
+  const verification = cryptoProofsService.verifyProof(proof);
+
+  // Log verification attempt
+  if (databaseService.isConnected()) {
+    await databaseService.logProofVerification({
+      transactionId: txId,
+      verifierAddress: req.body.verifierAddress,
+      verificationResult: verification.valid,
+      verificationReason: verification.reason,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+  }
+
+  res.json({
+    success: true,
+    transactionId: txId,
+    verification: verification,
+    timestamp: Date.now(),
+    verified: verification.valid,
+    details: verification.details || null,
+    compliance: verification.valid ? 'VERIFIED' : 'FAILED'
+  });
+}));
+
 // Health check for bridge service
 router.get('/health', async (req, res) => {
   try {
@@ -390,21 +549,19 @@ router.get('/health', async (req, res) => {
 
 /**
  * Swap SOL to zenZEC
- * POST body: { solanaAddress, solAmount, usePrivacy }
+ * POST body: { solanaAddress, solAmount }
+ * PRIVACY ALWAYS ON: All amounts are encrypted via Arcium MPC
  */
 router.post('/swap-sol-to-zenzec', validateSwapRequest, asyncHandler(async (req, res) => {
-  const { solanaAddress, solAmount, usePrivacy } = req.body;
+  const { solanaAddress, solAmount } = req.body;
   const solAmountNum = solAmount || 0;
 
-    console.log(`SOL → zenZEC swap: ${solAmountNum} SOL for ${solanaAddress}`);
+    console.log(`🔒 SOL → zenZEC swap: ${solAmountNum} SOL for ${solanaAddress} (Full Privacy)`);
 
-    // Optional: Encrypt amount if privacy enabled
-    let encryptedAmount = null;
-    if (usePrivacy && process.env.ENABLE_ARCIUM_MPC === 'true') {
+    // ALWAYS encrypt amount via Arcium MPC
       const arciumService = require('../services/arcium');
-      encryptedAmount = await arciumService.encryptAmount(solAmountNum, solanaAddress);
-      console.log('Amount encrypted via Arcium MPC');
-    }
+    const encryptedAmount = await arciumService.encryptAmount(solAmountNum, solanaAddress);
+    console.log('✓ Amount encrypted via Arcium MPC');
 
     // Check if we're in demo mode (missing relayer keypair or mint)
     const isDemoMode = !solanaService.relayerKeypair || 
@@ -457,7 +614,7 @@ router.post('/swap-sol-to-zenzec', validateSwapRequest, asyncHandler(async (req,
           solanaTxSignature: txSignature,
           direction: 'sol_to_zenzec',
           status: 'confirmed',
-          encrypted: !!encryptedAmount,
+          encrypted: true,  // ALWAYS encrypted
           demoMode: isDemoMode,
         });
         console.log(`✓ Swap transaction saved to database: ${txId}`);
@@ -474,38 +631,32 @@ router.post('/swap-sol-to-zenzec', validateSwapRequest, asyncHandler(async (req,
       zenZECAmount: zenZECAmount,
       solanaAddress,
       solanaTxSignature: txSignature,
-      encrypted: !!encryptedAmount,
+      encrypted: true,  // ALWAYS encrypted
+      privacy: 'full',
       demoMode: isDemoMode,
       message: isDemoMode 
-        ? 'SOL swapped to zenZEC successfully (Demo Mode - Mock Transaction)'
-        : 'SOL swapped to zenZEC successfully',
+        ? '🔒 SOL swapped to zenZEC successfully (Demo Mode - Mock Transaction) - Full Privacy Enabled'
+        : '🔒 SOL swapped to zenZEC successfully - Full Privacy Enabled',
     });
 }));
 
 /**
  * Create burn_for_btc transaction (ready to sign)
- * POST body: { solanaAddress, amount, btcAddress, usePrivacy }
+ * POST body: { solanaAddress, amount, btcAddress }
+ * PRIVACY ALWAYS ON: BTC address is encrypted via Arcium MPC
  * Returns: Serialized transaction that frontend can sign and send
  */
 router.post('/create-burn-for-btc-tx', validateBurnRequest, asyncHandler(async (req, res) => {
-  const { solanaAddress, amount, btcAddress, usePrivacy } = req.body;
+  const { solanaAddress, amount, btcAddress } = req.body;
   const amountNum = amount;
 
-    console.log(`Creating burn_for_btc transaction: ${amountNum} zenZEC to ${btcAddress}`);
+    console.log(`🔒 Creating burn_for_btc transaction: ${amountNum} zenZEC to ${btcAddress.substring(0, 10)}... (Full Privacy)`);
 
-    // Optional: Encrypt BTC address if privacy enabled
-    let encryptedBTCAddress = btcAddress;
-    if (usePrivacy && process.env.ENABLE_ARCIUM_MPC === 'true') {
+    // ALWAYS encrypt BTC address via Arcium MPC
       const arciumService = require('../services/arcium');
-      try {
         const encrypted = await arciumService.encryptBTCAddress(btcAddress, solanaAddress);
-        encryptedBTCAddress = encrypted.ciphertext || Buffer.from(btcAddress).toString('base64');
-        console.log('BTC address encrypted via Arcium MPC');
-      } catch (err) {
-        console.warn('Arcium encryption failed, using simplified encoding:', err);
-        encryptedBTCAddress = Buffer.from(btcAddress).toString('base64');
-      }
-    }
+    const encryptedBTCAddress = encrypted.ciphertext;
+    console.log('✓ BTC address encrypted via Arcium MPC');
 
     // Create the transaction with burn_for_btc instruction
     const { Transaction } = require('@solana/web3.js');
@@ -513,7 +664,7 @@ router.post('/create-burn-for-btc-tx', validateBurnRequest, asyncHandler(async (
       solanaAddress,
       amountNum,
       encryptedBTCAddress,
-      usePrivacy || false
+      true  // ALWAYS use privacy
     );
 
     // Serialize transaction (without signature - frontend will sign)
@@ -525,12 +676,13 @@ router.post('/create-burn-for-btc-tx', validateBurnRequest, asyncHandler(async (
     res.json({
       success: true,
       transaction: serialized.toString('base64'),
-      message: 'Transaction created. Sign and send from frontend.',
+      message: '🔒 Transaction created with full privacy. Sign and send from frontend.',
       instruction: {
         solanaAddress,
         amount: amountNum,
-        btcAddress: encryptedBTCAddress.substring(0, 20) + '...',
-        usePrivacy: !!usePrivacy,
+        btcAddress: '[ENCRYPTED]',  // Don't reveal even truncated address
+        encrypted: true,
+        privacy: 'full',
       },
     });
 }));
@@ -542,7 +694,7 @@ router.post('/create-burn-for-btc-tx', validateBurnRequest, asyncHandler(async (
  */
 router.post('/burn-for-btc', async (req, res) => {
   try {
-    const { solanaAddress, amount, btcAddress, usePrivacy } = req.body;
+    const { solanaAddress, amount, btcAddress } = req.body;
 
     if (!solanaAddress || !amount || !btcAddress) {
       return res.status(400).json({
@@ -565,21 +717,20 @@ router.post('/burn-for-btc', async (req, res) => {
       });
     }
 
-    // Optional: Encrypt BTC address if privacy enabled
-    let encryptedBTCAddress = btcAddress;
-    if (usePrivacy && process.env.ENABLE_ARCIUM_MPC === 'true') {
+    // ALWAYS encrypt BTC address via Arcium MPC
       const arciumService = require('../services/arcium');
-      encryptedBTCAddress = Buffer.from(btcAddress).toString('base64');
-    }
+    const encrypted = await arciumService.encryptBTCAddress(btcAddress, solanaAddress);
+    const encryptedBTCAddress = encrypted.ciphertext;
 
     res.json({
       success: true,
-      message: 'Use /create-burn-for-btc-tx endpoint for proper transaction creation',
+      message: '🔒 Use /create-burn-for-btc-tx endpoint for proper transaction creation (Full Privacy Enabled)',
       instruction: {
         solanaAddress,
         amount: amountNum,
-        btcAddress: encryptedBTCAddress,
-        usePrivacy: !!usePrivacy,
+        btcAddress: '[ENCRYPTED]',
+        encrypted: true,
+        privacy: 'full',
       },
       deprecated: true,
     });
@@ -664,6 +815,165 @@ router.get('/transaction/:txId', validateTxId, asyncHandler(async (req, res) => 
     transactionType,
     transaction,
   });
+}));
+
+/**
+ * Execute Jupiter DEX Swap (BTC → USDC → Token)
+ * POST /api/bridge/jupiter-swap
+ */
+router.post('/jupiter-swap', asyncHandler(async (req, res) => {
+  const { userAddress, outputToken, usdcAmount } = req.body;
+
+  if (!userAddress || !outputToken || !usdcAmount) {
+    throw new APIError(400, 'Missing required parameters', {
+      required: ['userAddress', 'outputToken', 'usdcAmount'],
+      received: { userAddress, outputToken, usdcAmount },
+    });
+  }
+
+  console.log(`🔄 Jupiter Swap Request: ${usdcAmount} USDC → ${outputToken} for ${userAddress}`);
+
+  try {
+    const result = await jupiterService.swapZECForToken(userAddress, outputToken, usdcAmount);
+
+    // Record in database if connected
+    if (databaseService.isConnected()) {
+      await databaseService.recordSwapTransaction({
+        userAddress,
+        inputToken: 'ZEC',
+        outputToken,
+        inputAmount: usdcAmount,
+        txHash: result.signature,
+        status: 'completed',
+        timestamp: new Date(),
+      });
+    }
+
+    res.json({
+      success: true,
+      signature: result.signature,
+      confirmation: result.confirmation,
+      message: `Successfully swapped ${usdcAmount} USDC to ${outputToken}`,
+    });
+
+  } catch (error) {
+    console.error('Jupiter swap error:', error);
+    throw new APIError(500, 'Swap execution failed', {
+      error: error.message,
+      userAddress,
+      outputToken,
+      usdcAmount,
+    });
+  }
+}));
+
+/**
+ * Claim BTC Deposit
+ * POST /api/bridge/btc-deposit
+ * User provides their Solana address and BTC tx hash to claim tokens
+ */
+router.post('/btc-deposit', asyncHandler(async (req, res) => {
+  const { solanaAddress, bitcoinTxHash, outputTokenMint } = req.body;
+
+  if (!solanaAddress || !bitcoinTxHash) {
+    throw new APIError(400, 'Missing required parameters', {
+      required: ['solanaAddress', 'bitcoinTxHash'],
+      optional: ['outputTokenMint'], // Token user wants to receive (defaults to USDC)
+    });
+  }
+
+  try {
+    // Verify Bitcoin payment
+    console.log(`Verifying BTC deposit: ${bitcoinTxHash}`);
+    const verification = await bitcoinService.verifyBitcoinPayment(
+      bitcoinTxHash,
+      0 // Amount will be extracted from transaction
+    );
+
+    if (!verification.verified) {
+      throw new APIError(400, 'Bitcoin payment verification failed', {
+        reason: verification.reason,
+        bitcoinTxHash,
+        confirmations: verification.confirmations,
+      });
+    }
+
+    // Create payment object
+    const payment = {
+      txHash: bitcoinTxHash,
+      amount: verification.amount, // in satoshis
+      confirmations: verification.confirmations,
+      blockHeight: verification.blockHeight,
+      timestamp: verification.timestamp,
+    };
+
+    // Handle BTC deposit → USDC → Token swap
+    const result = await btcDepositHandler.handleBTCDeposit(
+      payment,
+      solanaAddress,
+      outputTokenMint || null // null = default to USDC
+    );
+
+    if (result.alreadyProcessed) {
+      return res.status(409).json({
+        success: false,
+        error: 'This BTC deposit has already been processed',
+        bitcoinTxHash,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'BTC deposit processed successfully',
+      bitcoinTxHash,
+      btcAmount: result.btcAmount,
+      usdcAmount: result.usdcAmount,
+      outputToken: result.outputToken,
+      swapSignature: result.swapSignature,
+      solanaAddress,
+    });
+
+  } catch (error) {
+    console.error('BTC deposit claim error:', error);
+    throw new APIError(500, 'Failed to process BTC deposit', {
+      error: error.message,
+      bitcoinTxHash,
+    });
+  }
+}));
+
+/**
+ * Get Jupiter Quote
+ * POST /api/bridge/jupiter-quote
+ */
+router.post('/jupiter-quote', asyncHandler(async (req, res) => {
+  const { inputMint, outputMint, amount, slippageBps } = req.body;
+
+  if (!inputMint || !outputMint || !amount) {
+    throw new APIError(400, 'Missing required parameters', {
+      required: ['inputMint', 'outputMint', 'amount'],
+    });
+  }
+
+  try {
+    const quote = await jupiterService.getQuote(
+      new PublicKey(inputMint),
+      new PublicKey(outputMint),
+      amount,
+      slippageBps || 50
+    );
+
+    res.json({
+      success: true,
+      quote,
+    });
+
+  } catch (error) {
+    console.error('Jupiter quote error:', error);
+    throw new APIError(500, 'Quote retrieval failed', {
+      error: error.message,
+    });
+  }
 }));
 
 module.exports = router;

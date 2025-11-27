@@ -1,11 +1,62 @@
-const { Connection, PublicKey, Keypair, clusterApiUrl, Transaction } = require('@solana/web3.js');
-const { AnchorProvider, Program, web3, BN } = require('@coral-xyz/anchor');
-const { 
-  getAssociatedTokenAddress, 
-  createAssociatedTokenAccountInstruction,
-  TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID
-} = require('@solana/spl-token');
+// Lazy load Solana dependencies to avoid import issues in tests
+let solanaDeps = null;
+
+const getSolanaDeps = () => {
+  if (!solanaDeps) {
+    try {
+      const { Connection, PublicKey, Keypair, clusterApiUrl, Transaction } = require('@solana/web3.js');
+      const { AnchorProvider, Program, web3, BN } = require('@coral-xyz/anchor');
+      const {
+        getAssociatedTokenAddress,
+        createAssociatedTokenAccountInstruction,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      } = require('@solana/spl-token');
+
+      solanaDeps = {
+        Connection,
+        PublicKey,
+        Keypair,
+        clusterApiUrl,
+        Transaction,
+        AnchorProvider,
+        Program,
+        web3,
+        BN,
+        getAssociatedTokenAddress,
+        createAssociatedTokenAccountInstruction,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      };
+    } catch (error) {
+      console.warn('Solana dependencies not available:', error.message);
+      // Provide mock implementations for testing
+      const MockPublicKey = class MockPublicKey {
+        constructor(addr) { this.address = addr; }
+        toString() { return this.address; }
+        toBase58() { return this.address; }
+        equals(other) { return other.toString() === this.address; }
+      };
+
+      solanaDeps = {
+        Connection: class MockConnection {},
+        PublicKey: MockPublicKey,
+        Keypair: { generate: () => ({ publicKey: new MockPublicKey('mock'), secretKey: new Uint8Array(64) }) },
+        clusterApiUrl: () => 'http://mock-rpc.com',
+        Transaction: class MockTransaction {},
+        AnchorProvider: class MockAnchorProvider {},
+        Program: class MockProgram {},
+        web3: { SystemProgram: {}, SYSVAR_RENT_PUBKEY: new MockPublicKey('SysvarRent111111111111111111111111111111111') },
+        BN: class MockBN {},
+        getAssociatedTokenAddress: async () => new MockPublicKey('mock-token-account'),
+        createAssociatedTokenAccountInstruction: () => ({}),
+        TOKEN_PROGRAM_ID: new MockPublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+        ASSOCIATED_TOKEN_PROGRAM_ID: new MockPublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
+      };
+    }
+  }
+  return solanaDeps;
+};
 const fs = require('fs');
 const path = require('path');
 
@@ -22,22 +73,30 @@ try {
 
 class SolanaService {
   constructor() {
+    const deps = getSolanaDeps();
     const network = process.env.SOLANA_NETWORK || 'devnet';
-    const rpcUrl = process.env.SOLANA_RPC_URL || clusterApiUrl(network);
-    
-    this.connection = new Connection(rpcUrl, 'confirmed');
-    this.programId = new PublicKey(process.env.PROGRAM_ID || 'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS');
-    
+    const rpcUrl = process.env.SOLANA_RPC_URL || deps.clusterApiUrl(network);
+
+    this.connection = new deps.Connection(rpcUrl, 'confirmed');
+
+    // Only initialize programId if PROGRAM_ID is set (for zenZEC features)
+    if (process.env.PROGRAM_ID && process.env.PROGRAM_ID !== '') {
+      this.programId = new deps.PublicKey(process.env.PROGRAM_ID);
+    } else {
+      this.programId = null; // Not using zenZEC features
+    }
+
     // Load relayer keypair if available
     this.relayerKeypair = this.loadRelayerKeypair();
   }
 
   loadRelayerKeypair() {
     try {
-      const keypairPath = process.env.RELAYER_KEYPAIR_PATH || path.join(process.env.HOME, '.config/solana/id.json');
+      const deps = getSolanaDeps();
+      const keypairPath = process.env.RELAYER_KEYPAIR_PATH || path.join(__dirname, '..', '..', 'backend', 'relayer-keypair-new.json');
       if (fs.existsSync(keypairPath)) {
         const keypairData = JSON.parse(fs.readFileSync(keypairPath, 'utf8'));
-        return Keypair.fromSecretKey(Uint8Array.from(keypairData));
+        return deps.Keypair.fromSecretKey(Uint8Array.from(keypairData));
       }
     } catch (error) {
       console.warn('Relayer keypair not loaded:', error.message);
@@ -50,10 +109,15 @@ class SolanaService {
   }
 
   getProgram() {
+    if (!this.programId) {
+      throw new Error('Solana program not configured. Set PROGRAM_ID in .env to enable zenZEC features.');
+    }
+
     if (!idl || !this.relayerKeypair) {
       throw new Error('IDL or relayer keypair not available');
     }
 
+    const deps = getSolanaDeps();
     const wallet = {
       publicKey: this.relayerKeypair.publicKey,
       signTransaction: async (tx) => {
@@ -68,21 +132,57 @@ class SolanaService {
       },
     };
 
-    const provider = new AnchorProvider(
+    const provider = new deps.AnchorProvider(
       this.connection,
       wallet,
       { commitment: 'confirmed' }
     );
 
-    return new Program(idl, this.programId, provider);
+    return new deps.Program(idl, this.programId, provider);
   }
 
   async getConfigPDA() {
-    const [configPda] = await PublicKey.findProgramAddress(
+    if (!this.programId) {
+      throw new Error('Solana program not configured. Set PROGRAM_ID in .env to enable zenZEC features.');
+    }
+
+    const deps = getSolanaDeps();
+    const [configPda] = await deps.PublicKey.findProgramAddress(
       [Buffer.from('config')],
       this.programId
     );
     return configPda;
+  }
+
+  /**
+   * Retry wrapper for transaction operations
+   * @param {Function} fn - Async function to retry
+   * @param {number} maxRetries - Maximum retry attempts
+   * @param {number} baseDelay - Base delay in ms for exponential backoff
+   * @returns {Promise} Result of function
+   */
+  async retryOperation(fn, maxRetries = 3, baseDelay = 1000) {
+    let lastError;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+        // Don't retry on certain errors (e.g., validation errors, insufficient funds)
+        if (error.message?.includes('Invalid') || 
+            error.message?.includes('Insufficient') ||
+            error.message?.includes('not configured')) {
+          throw error;
+        }
+        
+        if (attempt < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, attempt);
+          console.log(`Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms: ${error.message}`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    throw lastError;
   }
 
   async mintZenZEC(userAddress, amount) {
@@ -98,7 +198,8 @@ class SolanaService {
     // Get or create user token account (ATA)
     const userTokenAccount = await this.getOrCreateTokenAccount(userPubkey);
 
-    try {
+    // Retry minting operation with exponential backoff
+    return await this.retryOperation(async () => {
       const tx = await program.methods
         .mintZenZec(new BN(amount))
         .accounts({
@@ -113,10 +214,7 @@ class SolanaService {
       console.log(`Minted ${amount} zenZEC to ${userAddress}`);
       console.log(`Transaction: ${tx}`);
       return tx;
-    } catch (error) {
-      console.error('Error minting zenZEC:', error);
-      throw error;
-    }
+    }, 3, 2000); // 3 retries, 2s base delay
   }
 
   async getOrCreateTokenAccount(userPubkey) {

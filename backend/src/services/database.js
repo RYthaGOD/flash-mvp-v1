@@ -25,25 +25,55 @@ class DatabaseService {
     });
 
     this.connected = false;
+
+    // Health monitoring and reconnection
+    this.healthCheckInterval = null;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 10;
+    this.healthCheckIntervalMs = 30000; // 30 seconds
+
+    // Start health monitoring
+    this.startHealthMonitoring();
   }
 
   /**
-   * Initialize database connection
+   * Initialize database connection with retry logic
+   * @param {number} maxRetries - Maximum retry attempts
+   * @param {number} retryDelay - Delay between retries in ms
    */
-  async initialize() {
-    try {
-      // Test connection
-      const client = await this.pool.connect();
-      await client.query('SELECT NOW()');
-      client.release();
-      this.connected = true;
-      console.log('✓ Database connected successfully');
-      return true;
-    } catch (error) {
-      console.error('Failed to connect to database:', error.message);
-      this.connected = false;
-      return false;
+  async initialize(maxRetries = 3, retryDelay = 2000) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Test connection with timeout
+        const client = await Promise.race([
+          this.pool.connect(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Connection timeout')), 5000)
+          )
+        ]);
+        
+        await client.query('SELECT NOW()');
+        client.release();
+        this.connected = true;
+        console.log('✓ Database connected successfully');
+        return true;
+      } catch (error) {
+        const isLastAttempt = attempt === maxRetries - 1;
+        
+        if (isLastAttempt) {
+          console.error(`Failed to connect to database after ${maxRetries} attempts:`, error.message);
+          this.connected = false;
+          return false;
+        }
+        
+        console.warn(`Database connection attempt ${attempt + 1}/${maxRetries} failed: ${error.message}`);
+        console.warn(`Retrying in ${retryDelay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
     }
+    
+    this.connected = false;
+    return false;
   }
 
   /**
@@ -62,17 +92,19 @@ class DatabaseService {
       bitcoinTxHash,
       zcashTxHash,
       demoMode = false,
+      outputToken,
     } = transaction;
 
     const query = `
       INSERT INTO bridge_transactions (
         tx_id, solana_address, amount, reserve_asset, status,
-        solana_tx_signature, bitcoin_tx_hash, zcash_tx_hash, demo_mode
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      ON CONFLICT (tx_id) 
+        solana_tx_signature, bitcoin_tx_hash, zcash_tx_hash, demo_mode, output_token
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (tx_id)
       DO UPDATE SET
         status = EXCLUDED.status,
         solana_tx_signature = COALESCE(EXCLUDED.solana_tx_signature, bridge_transactions.solana_tx_signature),
+        output_token = COALESCE(EXCLUDED.output_token, bridge_transactions.output_token),
         updated_at = NOW()
       RETURNING *
     `;
@@ -88,6 +120,7 @@ class DatabaseService {
         bitcoinTxHash || null,
         zcashTxHash || null,
         demoMode,
+        outputToken || null,
       ]);
 
       // Log status change
@@ -518,6 +551,171 @@ class DatabaseService {
   }
 
   /**
+   * Save cryptographic proof to database
+   */
+  async saveCryptographicProof({ transactionId, transactionType, proof }) {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected');
+    }
+
+    // Input validation
+    if (!transactionId || typeof transactionId !== 'string') {
+      throw new Error('Invalid transactionId: must be a non-empty string');
+    }
+
+    if (!['bridge', 'swap', 'burn'].includes(transactionType)) {
+      throw new Error('Invalid transactionType: must be bridge, swap, or burn');
+    }
+
+    if (!proof || typeof proof !== 'object') {
+      throw new Error('Invalid proof: must be an object');
+    }
+
+    if (!proof.transactionHash || !proof.signature || !proof.merkleProof || !proof.chainOfCustody) {
+      throw new Error('Invalid proof: missing required fields');
+    }
+
+    const expiresAt = new Date(Date.now() + (365 * 24 * 60 * 60 * 1000)); // 1 year expiry
+
+    const query = `
+      INSERT INTO cryptographic_proofs
+      (transaction_id, transaction_type, proof_version, transaction_hash, signature, merkle_proof, zk_proof, chain_of_custody, metadata, expires_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (transaction_id, transaction_type)
+      DO UPDATE SET
+        transaction_hash = EXCLUDED.transaction_hash,
+        signature = EXCLUDED.signature,
+        merkle_proof = EXCLUDED.merkle_proof,
+        zk_proof = EXCLUDED.zk_proof,
+        chain_of_custody = EXCLUDED.chain_of_custody,
+        metadata = EXCLUDED.metadata,
+        updated_at = NOW()
+    `;
+
+    const values = [
+      transactionId,
+      transactionType,
+      proof.version || '1.0.0',
+      proof.transactionHash,
+      JSON.stringify(proof.signature),
+      JSON.stringify(proof.merkleProof),
+      proof.zkProof ? JSON.stringify(proof.zkProof) : null,
+      JSON.stringify(proof.chainOfCustody),
+      JSON.stringify(proof.metadata || {}),
+      expiresAt
+    ];
+
+    try {
+      await this.queryWithRetry(query, values);
+    } catch (error) {
+      console.error('Database error saving cryptographic proof:', error);
+      throw new Error(`Failed to save cryptographic proof: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get cryptographic proof from database
+   */
+  async getCryptographicProof(transactionId, transactionType) {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected');
+    }
+
+    // Input validation
+    if (!transactionId || typeof transactionId !== 'string') {
+      throw new Error('Invalid transactionId: must be a non-empty string');
+    }
+
+    if (!['bridge', 'swap', 'burn'].includes(transactionType)) {
+      throw new Error('Invalid transactionType: must be bridge, swap, or burn');
+    }
+
+    const query = `
+      SELECT * FROM cryptographic_proofs
+      WHERE transaction_id = $1 AND transaction_type = $2
+      AND (expires_at IS NULL OR expires_at > NOW())
+      ORDER BY created_at DESC LIMIT 1
+    `;
+
+    try {
+      const result = await this.queryWithRetry(query, [transactionId, transactionType]);
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      const row = result.rows[0];
+
+      // Parse JSON fields with error handling
+      let signature, merkleProof, zkProof, chainOfCustody, metadata;
+
+      try {
+        signature = JSON.parse(row.signature);
+        merkleProof = JSON.parse(row.merkle_proof);
+        zkProof = row.zk_proof ? JSON.parse(row.zk_proof) : null;
+        chainOfCustody = JSON.parse(row.chain_of_custody);
+        metadata = JSON.parse(row.metadata);
+      } catch (parseError) {
+        console.error('Error parsing JSON fields from database:', parseError);
+        throw new Error('Corrupted proof data in database');
+      }
+
+      return {
+        ...row,
+        signature,
+        merkleProof,
+        zkProof,
+        chainOfCustody,
+        metadata
+      };
+    } catch (error) {
+      console.error('Database error retrieving cryptographic proof:', error);
+      throw new Error(`Failed to retrieve cryptographic proof: ${error.message}`);
+    }
+  }
+
+  /**
+   * Log proof verification attempt
+   */
+  async logProofVerification({ transactionId, verifierAddress, verificationResult, verificationReason, ipAddress, userAgent }) {
+    if (!this.isConnected()) {
+      return; // Don't throw error for logging failures
+    }
+
+    // Input validation
+    if (!transactionId || typeof transactionId !== 'string') {
+      console.warn('Invalid transactionId for verification logging, skipping');
+      return;
+    }
+
+    if (typeof verificationResult !== 'boolean') {
+      console.warn('Invalid verificationResult for verification logging, skipping');
+      return;
+    }
+
+    const query = `
+      INSERT INTO proof_verifications
+      (transaction_id, verifier_address, verification_result, verification_reason, ip_address, user_agent)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `;
+
+    const values = [
+      transactionId,
+      verifierAddress || null,
+      verificationResult,
+      verificationReason || null,
+      ipAddress || null,
+      userAgent || null
+    ];
+
+    try {
+      await this.pool.query(query, values);
+    } catch (error) {
+      console.warn('Failed to log proof verification:', error.message);
+    }
+  }
+
+  /**
    * Close database connection pool
    */
   async close() {
@@ -527,11 +725,129 @@ class DatabaseService {
   }
 
   /**
+   * Start database health monitoring
+   */
+  startHealthMonitoring() {
+    this.healthCheckInterval = setInterval(async () => {
+      try {
+        await this.healthCheck();
+      } catch (error) {
+        console.warn('Database health check failed:', error.message);
+
+        // Attempt reconnection if disconnected
+        if (!this.connected && this.reconnectAttempts < this.maxReconnectAttempts) {
+          console.log('🔄 Attempting database reconnection...');
+          this.reconnectAttempts++;
+
+          try {
+            const reconnected = await this.initialize(1, 1000);
+            if (reconnected) {
+              console.log('✅ Database reconnected successfully');
+              this.reconnectAttempts = 0;
+            }
+          } catch (reconnectError) {
+            console.warn(`Database reconnection attempt ${this.reconnectAttempts} failed:`, reconnectError.message);
+          }
+        }
+      }
+    }, this.healthCheckIntervalMs);
+  }
+
+  /**
+   * Perform database health check
+   */
+  async healthCheck() {
+    if (!this.pool) {
+      this.connected = false;
+      return;
+    }
+
+    try {
+      const client = await this.pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+
+      if (!this.connected) {
+        console.log('✅ Database connection restored');
+        this.connected = true;
+      }
+    } catch (error) {
+      if (this.connected) {
+        console.warn('❌ Database connection lost:', error.message);
+        this.connected = false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Stop health monitoring
+   */
+  stopHealthMonitoring() {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+    }
+  }
+
+  /**
+   * Enhanced query method with connection resilience
+   */
+  async queryWithRetry(sql, params = [], maxRetries = 2) {
+    let lastError;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (!this.connected && attempt > 0) {
+          // Wait a bit for potential reconnection
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        return await this.pool.query(sql, params);
+      } catch (error) {
+        lastError = error;
+
+        // Check if it's a connection error that might be recoverable
+        if (error.code === 'ECONNRESET' || error.code === 'ECONNREFUSED' ||
+            error.code === '57P01' || error.message.includes('connection')) {
+
+          console.warn(`Database query failed (attempt ${attempt + 1}/${maxRetries + 1}):`, error.message);
+
+          if (attempt < maxRetries) {
+            // Mark as disconnected and wait before retry
+            this.connected = false;
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+            continue;
+          }
+        }
+
+        // For non-connection errors, don't retry
+        break;
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
    * Get connection status
    * @returns {boolean} Connection status
    */
   isConnected() {
     return this.connected;
+  }
+
+  /**
+   * Enhanced close method with cleanup
+   */
+  async close() {
+    console.log('Database: Stopping health monitoring...');
+    this.stopHealthMonitoring();
+
+    console.log('Database: Closing connection pool...');
+    await this.pool.end();
+    this.connected = false;
+    console.log('Database: Connection pool closed');
   }
 }
 
