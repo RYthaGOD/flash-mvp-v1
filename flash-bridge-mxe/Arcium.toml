@@ -42,6 +42,11 @@ path = "encrypted-ixs/bridge_privacy.rs"
 function = "encrypt_bridge_amount"
 
 [[encrypted_instructions]]
+name = "encrypt_bridge_amount_sealed"
+path = "encrypted-ixs/bridge_privacy.rs"
+function = "encrypt_bridge_amount_sealed"
+
+[[encrypted_instructions]]
 name = "verify_bridge_transaction"
 path = "encrypted-ixs/bridge_privacy.rs"
 function = "verify_bridge_transaction"

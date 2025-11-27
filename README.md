@@ -1,40 +1,34 @@
-# 🔒 FLASH Bridge - Privacy-First Cross-Chain Bridge
+# 🔒 FLASH Bridge
 
-<div align="center">
+**BTC → ZEC (Shielded) → Solana Cross-Chain Bridge**
 
-![FLASH Bridge](https://img.shields.io/badge/FLASH-Bridge-blue?style=for-the-badge&logo=solana)
-![Arcium MPC](https://img.shields.io/badge/Arcium-MPC-purple?style=for-the-badge)
-![Privacy First](https://img.shields.io/badge/Privacy-First-red?style=for-the-badge&logo=zcash)
-
-**BTC → ZEC (Shielded) → Solana Bridge with Real MPC Privacy**
-
-*Custom MXE Implementation for Institutional-Grade Privacy*
+*Built with cryptographic proofs and custom MXE for Arcium MPC integration*
 
 ---
 
-## 🚀 What is FLASH Bridge?
+## 🚀 Overview
 
-FLASH Bridge is the **world's first cross-chain bridge with real Arcium MPC privacy**. Unlike simulated privacy solutions, FLASH Bridge uses **custom Multi-Party Computation (MPC) operations** that ensure **no single party can ever see transaction amounts**.
+FLASH Bridge is a cross-chain bridge connecting Bitcoin, Zcash, and Solana blockchains. It implements cryptographic proofs for transaction verification and includes a complete custom MXE implementation ready for Arcium MPC deployment.
 
-### ✨ Revolutionary Features
+### ✨ Features
 
-🛡️ **Real MPC Privacy**
-- **Custom MXE** with bridge-specific encrypted operations
-- **Arcium MPC encryption** - mathematically proven privacy
-- **Zero-knowledge verification** without revealing amounts
-- **Cryptographic proofs** for institutional compliance
+🛡️ **Privacy & Security**
+- Cryptographic proofs for transaction verification
+- HMAC-SHA256 signatures with institutional key management
+- Merkle tree proofs for transaction inclusion
+- Chain of custody tracking for audit trails
 
 ⚡ **Production Ready**
-- **Event-driven architecture** with automatic relayers
-- **Enterprise crash prevention** and auto-recovery
-- **Circuit breaker protection** against network failures
-- **Comprehensive audit trails** and monitoring
+- Crash prevention with comprehensive error handling
+- Database persistence with PostgreSQL
+- Circuit breaker protection against external API failures
+- Health monitoring and automatic recovery
 
 🔗 **Multi-Chain Bridge**
-- **BTC → ZEC (Shielded) → SOL** with full privacy
-- **Reverse flows**: SOL → zenZEC → BTC
-- **Zcash shielded addresses** for enhanced privacy
-- **Solana SPL tokens** for DEX integration
+- BTC → ZEC (Shielded) → SOL bridge operations
+- Reverse flows: SOL → zenZEC → BTC
+- Zcash shielded addresses support
+- Solana SPL token minting and burning
 
 ---
 
