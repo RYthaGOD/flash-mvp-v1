@@ -1,7 +1,31 @@
 {
-  "name": "flash-mvp",
+  "name": "flash-bridge",
   "version": "1.0.0",
-  "description": "FLASH — BTC → ZEC (shielded) → Solana Bridge (MVP)",
+  "description": "Privacy-first cross-chain bridge: BTC → ZEC (shielded) → Solana with Arcium MPC encryption",
+  "main": "backend/src/index.js",
+  "homepage": "https://flash-bridge.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/flash-bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/flash-bridge/issues"
+  },
+  "keywords": [
+    "solana",
+    "bridge",
+    "cross-chain",
+    "zcash",
+    "bitcoin",
+    "privacy",
+    "mpc",
+    "arcium",
+    "defi",
+    "cryptocurrency",
+    "blockchain"
+  ],
+  "author": "FLASH Bridge Team",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "install:all": "cd backend && npm install && cd ../frontend && npm install && cd ../backtest && npm install",
@@ -13,15 +37,20 @@
     "deploy:localnet": "anchor deploy",
     "setup": "./scripts/setup-localnet.sh",
     "backtest": "cd backtest && node backtest.js",
-    "test": "cd backtest && npm test"
+    "test": "cd backtest && npm test",
+    "demo": "npm run install:all && npm run start:backend & npm run start:frontend",
+    "check": "cd backend && npm run check",
+    "docs": "cd docs && npm run build"
   },
-  "keywords": [
-    "solana",
-    "bridge",
-    "zcash",
-    "bitcoin",
-    "defi"
-  ],
-  "author": "",
-  "license": "MIT"
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/sponsors/yourusername"
+  },
+  "dependencies": {
+    "bs58": "^6.0.0"
+  }
 }

@@ -1,108 +1,190 @@
-# Quick Start Guide
+# 🚀 Quick Start Guide - FLASH Bridge MVP
 
-## Prerequisites
+## 1. Setup Backend (2 minutes)
 
-- Node.js v18+
-- npm or yarn
-- Solana CLI (for localnet testing)
-- Anchor CLI (optional)
-
-## Quick Start
-
-### Option 1: Using PowerShell Script (Windows)
-
-```powershell
-# Start both backend and frontend
-.\run.ps1
-
-# Or start individually
-.\run.ps1 backend
-.\run.ps1 frontend
-```
-
-### Option 2: Using npm Scripts
-
+### Create `.env` file
 ```bash
-# Install all dependencies
-npm run install:all
-
-# Start backend (Terminal 1)
-npm run start:backend
-
-# Start frontend (Terminal 2)
-npm run start:frontend
-```
-
-### Option 3: Manual Start
-
-```bash
-# Terminal 1: Backend
 cd backend
+cat > .env << 'EOF'
+ENABLE_ARCIUM_MPC=true
+SOLANA_RPC_URL=http://127.0.0.1:8899
+DATABASE_PATH=./database/flash-bridge.db
+EOF
+```
+
+### Install & Start
+```bash
 npm install
 npm start
+```
 
-# Terminal 2: Frontend
+**Expected output:**
+```
+✅ Arcium MPC Privacy: ENABLED (Simulated for MVP)
+✅ Full Privacy Mode: ACTIVE
+Server running on port 3001
+```
+
+---
+
+## 2. Setup Frontend (1 minute)
+
+```bash
 cd frontend
 npm install
 npm start
 ```
 
-## Environment Setup
+**Opens:** http://localhost:3000
 
-### Backend (.env)
+---
 
-Create `backend/.env`:
+## 3. Start Solana (Optional - for real transactions)
 
-```env
-PORT=3001
-SOLANA_RPC_URL=https://api.devnet.solana.com
-SOLANA_NETWORK=devnet
-PROGRAM_ID=Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS
-ZENZEC_MINT=YourZenZECMintAddressHere
-ENABLE_RELAYER=false
-ZENZEC_TO_SOL_RATE=0.001
-```
-
-### Frontend (.env)
-
-Create `frontend/.env`:
-
-```env
-REACT_APP_API_URL=http://localhost:3001
-```
-
-## Access Points
-
-- **Frontend UI:** http://localhost:3000
-- **Backend API:** http://localhost:3001
-- **API Health:** http://localhost:3001/health
-
-## Testing the Bridge
-
-1. Open http://localhost:3000
-2. Connect your Solana wallet (Phantom, Solflare)
-3. Enter amount (e.g., 1.5 zenZEC)
-4. Click "Bridge to Solana"
-
-## Troubleshooting
-
-### Port Already in Use
-- Backend (3001): Stop existing process or change PORT in .env
-- Frontend (3000): Stop existing process
-
-### Dependencies Not Installed
 ```bash
-cd backend && npm install
-cd ../frontend && npm install
+solana-test-validator --reset
 ```
 
-### Environment Variables Missing
-- Check that `.env` files exist in both `backend/` and `frontend/`
-- See SETUP_GUIDE.md for full configuration
+**Without Solana:** System works in demo mode with mock transactions
 
-## Next Steps
+---
 
-- See `SETUP_GUIDE.md` for detailed setup
-- See `HACKATHON_DEMO.md` for demo workflows
-- See `CORE_SYSTEM_COMPLETE.md` for system status
+## 🎯 What You Get
 
+### ✅ Working Features
+- 🔒 **Full Privacy UI** - Always-on privacy badges
+- 💰 **BTC → zenZEC Bridge** - With ZEC shielding
+- 🔄 **SOL ↔ zenZEC Swap** - Encrypted amounts
+- 💳 **Token Management** - Burn & receive BTC
+- 📊 **Transaction History** - With privacy indicators
+- 🎨 **Beautiful UI** - Modern, responsive design
+
+### 🔒 Privacy Features (All Active)
+- ✅ Arcium MPC encryption (simulated)
+- ✅ ZEC privacy layer
+- ✅ Encrypted amounts
+- ✅ Encrypted BTC addresses
+- ✅ Private verification
+
+---
+
+## 🧪 Demo Scenarios
+
+### Scenario 1: Bridge BTC → zenZEC
+1. Click **"Bridge"** tab
+2. Enter amount (e.g., 0.1)
+3. Leave TX hash empty (uses demo mode)
+4. Click **"Bridge & Mint"**
+5. ✅ See privacy badge & encrypted confirmation
+
+### Scenario 2: Swap SOL → zenZEC
+1. Connect wallet (Phantom/Solflare)
+2. Click **"Bridge"** tab, scroll to swap section
+3. Enter SOL amount (e.g., 0.5)
+4. Click **"Swap SOL → zenZEC"**
+5. ✅ See encrypted transaction
+
+### Scenario 3: Burn zenZEC → BTC
+1. Click **"Manage Tokens"** tab
+2. Enter zenZEC amount
+3. Enter BTC address (any testnet address)
+4. Click **"Burn & Receive BTC"**
+5. ✅ See BTC address encrypted
+
+---
+
+## ⚡ Troubleshooting
+
+### ❌ "Arcium MPC must be enabled"
+**Fix:** Add `ENABLE_ARCIUM_MPC=true` to `.env`
+
+### ❌ "Port 3001 in use"
+**Fix:** `PORT=3002 npm start` or kill existing process
+
+### ❌ Wallet won't connect
+**Fix:** Install Phantom wallet extension
+
+### ❌ "Database not available"
+**Fix:** Create `backend/database/` directory
+
+---
+
+## 📁 Project Structure
+
+```
+flash-mvp-main/
+├── backend/
+│   ├── .env                    ← CREATE THIS!
+│   ├── src/
+│   │   ├── services/
+│   │   │   ├── arcium.js      ← Privacy (simulated)
+│   │   │   ├── solana.js      ← Solana integration
+│   │   │   └── relayer.js     ← Auto SOL sender
+│   │   └── routes/
+│   │       └── bridge.js      ← API endpoints
+│   └── database/               ← Auto-created
+├── frontend/
+│   └── src/
+│       └── components/         ← UI with privacy badges
+└── ENV_SETUP.md               ← Full config guide
+```
+
+---
+
+## 🎓 Understanding MVP Privacy
+
+### What's Real?
+- ✅ Privacy UX/UI
+- ✅ Privacy indicators
+- ✅ Encryption flow logic
+- ✅ Always-on enforcement
+
+### What's Simulated?
+- 🎭 Arcium MPC (uses base64 mock)
+- 🎭 BTC/ZEC transactions (demo mode)
+
+### Production Ready?
+- 🚀 **UI/UX:** Yes
+- 🚀 **Architecture:** Yes
+- 🚀 **Privacy logic:** Yes
+- ⏳ **Real MPC:** Needs Arcium network
+- ⏳ **Real crypto:** Needs mainnet setup
+
+---
+
+## 🎯 Next Steps
+
+### For Demo/Presentation:
+✅ **You're ready!** Just follow scenarios above
+
+### For Development:
+1. Set up real Solana validator
+2. Create zenZEC mint
+3. Configure relayer keypair
+4. Test with real wallets
+
+### For Production:
+1. Deploy real Arcium MPC network
+2. Use mainnet RPC endpoints
+3. Configure real BTC/ZEC services
+4. Set up monitoring & alerts
+
+---
+
+## 💡 Key Selling Points
+
+✨ **Privacy isn't optional** - It's always on  
+✨ **Zero user confusion** - No privacy toggles  
+✨ **Beautiful UX** - Clear privacy indicators  
+✨ **Production-ready architecture** - Just swap mock for real MPC  
+✨ **Institutional-grade** - Privacy by design  
+
+---
+
+## 📞 Support
+
+- **Setup issues:** See `ENV_SETUP.md`
+- **Privacy details:** See `ARCIUM_INTEGRATION.md`
+- **Architecture:** See `PRIVACY_FEATURES.md`
+
+**Ready to demo!** 🎉

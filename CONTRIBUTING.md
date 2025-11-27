@@ -1,133 +1,266 @@
 # Contributing to FLASH Bridge
 
-Thank you for your interest in contributing to the FLASH Bridge project!
+Thank you for your interest in contributing to FLASH Bridge! We welcome contributions from developers of all skill levels. This document provides guidelines and information for contributors.
 
-## Getting Started
+## 🚀 Quick Start
 
-1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/flash-mvp.git`
-3. Create a feature branch: `git checkout -b feature/your-feature-name`
-4. Make your changes
-5. Test your changes thoroughly
-6. Commit with clear messages: `git commit -m "Add: description of your changes"`
-7. Push to your fork: `git push origin feature/your-feature-name`
-8. Open a Pull Request
+1. **Fork** the repository on GitHub
+2. **Clone** your fork locally
+3. **Set up** development environment
+4. **Create** a feature branch
+5. **Make** your changes
+6. **Test** thoroughly
+7. **Submit** a pull request
 
-## Development Setup
+## 🛠️ Development Setup
 
 ### Prerequisites
+- Node.js 18+ and npm 8+
+- Git
+- (Optional) Solana CLI for local development
+- (Optional) Rust/Anchor for Solana program development
 
-- Solana CLI (v1.17.0+)
-- Anchor CLI (v0.29.0)
-- Node.js (v18+)
-- Rust (stable)
-
-### Setup
+### Setup Commands
 
 ```bash
-# Clone the repository
-git clone https://github.com/RYthaGOD/flash-mvp.git
-cd flash-mvp
+# Clone your fork
+git clone https://github.com/yourusername/flash-bridge.git
+cd flash-bridge
 
-# Run the setup script
-./scripts/setup-localnet.sh
+# Install all dependencies
+npm run install:all
+
+# Start development servers
+npm run demo  # Starts both backend and frontend
+
+# Or run individually:
+npm run start:backend   # Backend on :3001
+npm run start:frontend  # Frontend on :3000
 ```
 
-## Project Structure
+### Environment Configuration
 
+```bash
+# Copy and configure environment
+cd backend
+cp .env.example .env
+echo "ENABLE_ARCIUM_MPC=true" >> .env
+
+# Run configuration check
+npm run check
 ```
-flash-mvp/
-├── programs/zenz_bridge/    # Solana program (Rust/Anchor)
-├── backend/                  # Node.js backend server
-├── frontend/                 # React frontend app
-├── scripts/                  # Utility scripts
-└── .github/workflows/        # CI/CD workflows
+
+## 📋 Contribution Guidelines
+
+### Code Style
+- Use TypeScript for type safety
+- Follow ESLint configuration
+- Use Prettier for code formatting
+- Write meaningful commit messages
+- Add JSDoc comments for public APIs
+
+### Commit Messages
+```
+feat: add new privacy verification endpoint
+fix: resolve ESLint error in TokenManagementTab
+docs: update API documentation
+test: add unit tests for bridge service
+refactor: simplify MPC integration logic
 ```
 
-## Coding Standards
-
-### Rust/Solana Program
-
-- Follow Rust naming conventions
-- Add comments for complex logic
-- Write tests for new instructions
-- Use `cargo fmt` before committing
-
-### Backend (Node.js)
-
-- Use ES6+ features
-- Add JSDoc comments for functions
-- Handle errors gracefully
+### Testing
 - Write unit tests for new features
+- Add integration tests for API endpoints
+- Test with both mock and real services
+- Ensure all tests pass before submitting PR
 
-### Frontend (React)
+## 🎯 Areas for Contribution
 
-- Use functional components with hooks
-- Keep components focused and reusable
-- Add PropTypes or TypeScript
-- Follow React best practices
+### 🔒 Privacy & Security
+- Enhance MPC integration
+- Add additional privacy layers
+- Security hardening
+- Audit preparation
+
+### 🌐 Multi-Chain Support
+- Add support for new blockchains (ETH, BSC, MATIC)
+- Improve existing chain integrations
+- Cross-chain messaging protocols
+
+### ⚡ Performance & Scalability
+- Optimize transaction processing
+- Improve API response times
+- Database query optimization
+- Caching strategies
+
+### 🎨 User Experience
+- Mobile app development
+- UI/UX improvements
+- Accessibility enhancements
+- Internationalization (i18n)
+
+### 📚 Documentation & Education
+- API documentation
+- Tutorial creation
+- Video content
+- Developer guides
+
+### 🧪 Testing & Quality
+- Unit test coverage
+- Integration testing
+- E2E test automation
+- Performance testing
+
+## 🔄 Pull Request Process
+
+### 1. Choose an Issue
+- Check [GitHub Issues](https://github.com/yourusername/flash-bridge/issues) for open tasks
+- Comment on the issue to indicate you're working on it
+- Create an issue if you have a new idea
+
+### 2. Create a Branch
+```bash
+# Create feature branch
+git checkout -b feature/your-feature-name
+
+# Or for bug fixes
+git checkout -b fix/issue-number-description
+```
+
+### 3. Make Changes
+- Follow the existing code patterns
+- Add tests for new functionality
+- Update documentation as needed
+- Ensure all checks pass
+
+### 4. Test Your Changes
+```bash
+# Run all tests
+npm test
+
+# Run linting
+npm run lint
+
+# Manual testing
+# - Test bridge functionality
+# - Test privacy features
+# - Test error scenarios
+```
+
+### 5. Submit Pull Request
+- Provide a clear description of changes
+- Reference related issues
+- Include screenshots for UI changes
+- Request review from maintainers
+
+### PR Template
+```markdown
+## Description
+Brief description of changes
+
+## Type of Change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
 
 ## Testing
+- [ ] Unit tests added/updated
+- [ ] Integration tests added/updated
+- [ ] Manual testing completed
 
-### Solana Program
+## Screenshots (if applicable)
+Add screenshots of UI changes
 
-```bash
-anchor test
+## Related Issues
+Closes #123
 ```
 
-### Backend
+## 🐛 Bug Reports
 
-```bash
-cd backend
-npm test
+### Good Bug Report
+- Clear title describing the issue
+- Steps to reproduce
+- Expected vs actual behavior
+- Environment details (OS, Node version, etc.)
+- Screenshots or error logs
+- Code snippets if applicable
+
+### Bug Report Template
+```markdown
+**Describe the bug**
+A clear description of what the bug is.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
+
+**Expected behavior**
+A clear description of what you expected to happen.
+
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
+
+**Environment:**
+- OS: [e.g., macOS, Windows]
+- Browser: [e.g., Chrome, Safari]
+- Node Version: [e.g., 18.17.0]
 ```
 
-### Frontend
+## 💡 Feature Requests
 
-```bash
-cd frontend
-npm test
+### Good Feature Request
+- Clear title and description
+- Use case and benefits
+- Implementation suggestions
+- Mockups or examples
+- Related issues or PRs
+
+### Feature Request Template
+```markdown
+**Is your feature request related to a problem? Please describe.**
+A clear and concise description of what the problem is.
+
+**Describe the solution you'd like**
+A clear and concise description of what you want to happen.
+
+**Describe alternatives you've considered**
+A clear and concise description of any alternative solutions or features you've considered.
+
+**Additional context**
+Add any other context or screenshots about the feature request here.
 ```
 
-## Pull Request Guidelines
+## 📞 Communication
 
-- **Title**: Clear and descriptive
-- **Description**: Explain what changes you made and why
-- **Tests**: Include tests for new features
-- **Documentation**: Update README if needed
-- **Small PRs**: Keep changes focused and manageable
+### Where to Ask Questions
+- **GitHub Discussions**: General questions and ideas
+- **GitHub Issues**: Bug reports and feature requests
+- **Discord**: Real-time chat (#dev-support channel)
 
-## Code Review
+### Getting Help
+- Check existing documentation first
+- Search GitHub issues for similar problems
+- Ask in Discord for quick questions
+- Create GitHub issue for detailed help
 
-All submissions require review. We'll:
+## 🎖️ Recognition
 
-- Check code quality and style
-- Verify tests pass
-- Ensure documentation is updated
-- Review security implications
+Contributors are recognized in:
+- **README.md** contributors section
+- **GitHub repository insights**
+- **Monthly contributor spotlight**
+- **Hackathon and grant acknowledgments**
 
-## Reporting Issues
+## 📜 License
 
-Use GitHub Issues to report bugs or suggest features:
+By contributing to FLASH Bridge, you agree that your contributions will be licensed under the MIT License.
 
-1. Check if the issue already exists
-2. Use a clear, descriptive title
-3. Provide steps to reproduce (for bugs)
-4. Include system information
-5. Add relevant logs or screenshots
+## 🙏 Thank You
 
-## Security
+Your contributions help build the privacy-preserving future of cross-chain DeFi. Every contribution, no matter how small, makes a difference!
 
-For security issues, please email the maintainers directly instead of opening a public issue.
-
-## Questions?
-
-Open a GitHub Discussion or reach out to the maintainers.
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the MIT License.
-
----
-
-Thank you for contributing to FLASH Bridge! 🚀
+Happy coding! 🚀🔒

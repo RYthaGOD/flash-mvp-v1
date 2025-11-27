@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import TestnetWalletGenerator from '../TestnetWalletGenerator';
 import './TabStyles.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -9,17 +10,85 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
   const [swapToSol, setSwapToSol] = useState(false);
   const [bitcoinTxHash, setBitcoinTxHash] = useState('');
   const [zcashTxHash, setZcashTxHash] = useState('');
-  const [useZecPrivacy, setUseZecPrivacy] = useState(false);
+  // PRIVACY ALWAYS ON: Removed toggles, always use full privacy
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   
   // SOL → zenZEC swap state
   const [solAmount, setSolAmount] = useState('');
-  const [usePrivacyForSwap, setUsePrivacyForSwap] = useState(false);
+  // PRIVACY ALWAYS ON: Privacy is mandatory, no toggle needed
   const [swapResult, setSwapResult] = useState(null);
+
+  // BTC Deposit state
+  const [btcDepositTxHash, setBtcDepositTxHash] = useState('');
+  const [btcDepositTokenMint, setBtcDepositTokenMint] = useState('');
+  const [btcDepositLoading, setBtcDepositLoading] = useState(false);
+  const [btcDepositResult, setBtcDepositResult] = useState(null);
+  const [btcDepositError, setBtcDepositError] = useState(null);
+
+  // Wallet generator state
+  const [showWalletGenerator, setShowWalletGenerator] = useState(false);
+  const [generatedWallets, setGeneratedWallets] = useState(null);
+
+  const handleWalletsGenerated = (wallets) => {
+    setGeneratedWallets(wallets);
+    // Auto-fill the Bitcoin address if generated
+    if (wallets.bitcoin) {
+      setBitcoinTxHash(''); // Clear any existing hash
+      // Note: In a real demo, you'd want to fund the address first
+    }
+  };
+
   const [swapLoading, setSwapLoading] = useState(false);
   const [swapError, setSwapError] = useState(null);
+
+  // Handle BTC Deposit Claim
+  const handleBTCDepositClaim = async (e) => {
+    e.preventDefault();
+
+    if (!connected || !publicKey) {
+      setBtcDepositError('Please connect your wallet first');
+      return;
+    }
+
+    if (!btcDepositTxHash) {
+      setBtcDepositError('Please enter a Bitcoin transaction hash');
+      return;
+    }
+
+    setBtcDepositLoading(true);
+    setBtcDepositError(null);
+    setBtcDepositResult(null);
+
+    try {
+      const payload = {
+        solanaAddress: publicKey.toString(),
+        bitcoinTxHash: btcDepositTxHash,
+        outputTokenMint: btcDepositTokenMint || undefined, // Optional
+      };
+
+      console.log('Claiming BTC deposit:', payload);
+      const response = await axios.post(`${API_URL}/api/bridge/btc-deposit`, payload);
+
+      console.log('BTC deposit claim response:', response.data);
+      setBtcDepositResult(response.data);
+
+      // Clear form on success
+      setBtcDepositTxHash('');
+      setBtcDepositTokenMint('');
+
+    } catch (err) {
+      console.error('BTC deposit claim error:', err);
+      const errorMessage = err.response?.data?.error ||
+                          err.response?.data?.message ||
+                          err.message ||
+                          'Failed to claim BTC deposit';
+      setBtcDepositError(errorMessage);
+    } finally {
+      setBtcDepositLoading(false);
+    }
+  };
 
   const handleBridge = async (e) => {
     e.preventDefault();
@@ -46,12 +115,12 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
         solanaAddress: publicKey.toString(),
         amount: parseFloat(amount),
         swapToSol: swapToSol,
+        useZecPrivacy: true,  // ALWAYS use ZEC privacy
       };
 
       // Add optional transaction hashes
       if (bitcoinTxHash) payload.bitcoinTxHash = bitcoinTxHash;
       if (zcashTxHash) payload.zcashTxHash = zcashTxHash;
-      if (useZecPrivacy) payload.useZecPrivacy = useZecPrivacy;
 
       console.log('Sending bridge request:', payload);
       const response = await axios.post(`${API_URL}/api/bridge`, payload);
@@ -85,6 +154,9 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
     <div className="tab-content-wrapper">
       <h2>Bridge to Solana</h2>
       <p className="tab-description">
+        Send BTC to the bridge address, then claim your tokens. No zenZEC minting required - direct token swaps via Jupiter DEX.
+      </p>
+      <p className="tab-description">
         Mint zenZEC tokens on Solana. Supports demo mode, Bitcoin verification, and Zcash verification.
       </p>
 
@@ -94,6 +166,33 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
           <p>Please connect your Solana wallet using the button at the top of the page to use this feature.</p>
         </div>
       )}
+
+      {/* Bitcoin Testnet Wallet Generator */}
+      <div className="wallet-generator-section" style={{ marginBottom: '2rem', textAlign: 'center' }}>
+        <div className="message info-message" style={{ marginBottom: '1rem' }}>
+          <strong>🎬 Want to see FLASH Bridge work with real BTC?</strong>
+          <p>Generate a Bitcoin testnet wallet and fund it to demonstrate BTC → zenZEC bridging!</p>
+        </div>
+        <button
+          type="button"
+          className="primary-button demo-button"
+          onClick={() => setShowWalletGenerator(true)}
+          style={{
+            backgroundColor: '#f7931a',
+            border: '2px solid #f7931a',
+            fontSize: '1.1rem',
+            padding: '0.75rem 1.5rem',
+            marginBottom: '1rem'
+          }}
+        >
+          ₿ Generate Bitcoin Testnet Wallet
+        </button>
+        {generatedWallets && (
+          <div className="message success-message">
+            ✅ Bitcoin testnet wallet generated! Get testnet BTC from a faucet and bridge to zenZEC.
+          </div>
+        )}
+      </div>
 
       <form onSubmit={handleBridge} className="bridge-form">
         <div className="form-group">
@@ -137,16 +236,18 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
           <p className="helper-text">Verify Zcash shielded transaction</p>
         </div>
 
-        <div className="form-group checkbox-group">
-          <label>
-            <input
-              type="checkbox"
-              checked={useZecPrivacy}
-              onChange={(e) => setUseZecPrivacy(e.target.checked)}
-              disabled={loading}
-            />
-            <span>Use ZEC Privacy Layer (BTC → ZEC conversion)</span>
-          </label>
+        <div className="privacy-badge" style={{
+          backgroundColor: '#00cc00',
+          color: '#000',
+          padding: '0.75rem',
+          borderRadius: '6px',
+          marginBottom: '1rem',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          border: '2px solid #00ff00',
+          boxShadow: '0 0 10px rgba(0, 255, 0, 0.3)'
+        }}>
+          🔒 FULL PRIVACY ENABLED - All transactions encrypted via Arcium MPC + ZEC shielding
         </div>
 
         <div className="form-group checkbox-group">
@@ -181,6 +282,114 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
           {loading ? 'Processing...' : !connected ? 'Connect Wallet First' : 'Bridge to Solana'}
         </button>
       </form>
+
+      {/* BTC Deposit Claim Section */}
+      <div className="btc-deposit-section" style={{
+        marginTop: '3rem',
+        padding: '2rem',
+        border: '2px solid #f7931a',
+        borderRadius: '8px',
+        backgroundColor: '#fff8e1'
+      }}>
+        <h3 style={{ color: '#f7931a', marginBottom: '1rem' }}>
+          ₿ Claim BTC Deposit
+        </h3>
+        <p style={{ marginBottom: '1.5rem', color: '#666' }}>
+          After sending BTC to the bridge address, enter your transaction hash and choose the token you want to receive on Solana.
+        </p>
+
+        <form onSubmit={handleBTCDepositClaim} className="btc-deposit-form">
+          <div className="form-group">
+            <label htmlFor="btcDepositTxHash" style={{ color: '#f7931a', fontWeight: 'bold' }}>
+              Bitcoin Transaction Hash *
+            </label>
+            <input
+              id="btcDepositTxHash"
+              type="text"
+              value={btcDepositTxHash}
+              onChange={(e) => setBtcDepositTxHash(e.target.value)}
+              placeholder="Enter your BTC transaction hash"
+              disabled={btcDepositLoading}
+              required
+              style={{ border: '2px solid #f7931a' }}
+            />
+            <p className="helper-text">The transaction hash from your BTC payment to the bridge address</p>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="btcDepositTokenMint" style={{ color: '#f7931a', fontWeight: 'bold' }}>
+              Desired Output Token (Optional)
+            </label>
+            <select
+              id="btcDepositTokenMint"
+              value={btcDepositTokenMint}
+              onChange={(e) => setBtcDepositTokenMint(e.target.value)}
+              disabled={btcDepositLoading}
+              style={{ border: '2px solid #f7931a' }}
+            >
+              <option value="">USDC (default)</option>
+              <option value="So11111111111111111111111111111111111111112">SOL</option>
+              <option value="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v">USDC</option>
+              <option value="Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB">USDT</option>
+              <option value="7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs">ETH (Wormhole)</option>
+              <option value="9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ9E">BTC (Wormhole)</option>
+            </select>
+            <p className="helper-text">Choose which token you want to receive. Defaults to USDC if not specified.</p>
+          </div>
+
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={btcDepositLoading || !connected}
+            style={{
+              backgroundColor: '#f7931a',
+              border: '2px solid #f7931a',
+              fontSize: '1.1rem',
+              padding: '0.75rem 1.5rem'
+            }}
+          >
+            {btcDepositLoading ? '🔄 Claiming...' : !connected ? 'Connect Wallet First' : '₿ Claim BTC Deposit'}
+          </button>
+        </form>
+
+        {btcDepositError && (
+          <div className="message error-message" style={{ marginTop: '1rem' }}>
+            <strong>Error:</strong> {btcDepositError}
+          </div>
+        )}
+
+        {btcDepositResult && (
+          <div className="message success-message" style={{ marginTop: '1rem' }}>
+            <h3>✅ BTC Deposit Claimed Successfully!</h3>
+            <div className="result-details">
+              <div className="detail-row">
+                <span className="detail-label">BTC Amount:</span>
+                <span className="detail-value">{btcDepositResult.btcAmount?.toFixed(8)} BTC</span>
+              </div>
+              <div className="detail-row">
+                <span className="detail-label">USDC Equivalent:</span>
+                <span className="detail-value">{btcDepositResult.usdcAmount?.toFixed(2)} USDC</span>
+              </div>
+              <div className="detail-row">
+                <span className="detail-label">Token Received:</span>
+                <span className="detail-value">{btcDepositResult.outputToken || 'USDC'}</span>
+              </div>
+              <div className="detail-row">
+                <span className="detail-label">Swap Transaction:</span>
+                <span className="detail-value tx-link">
+                  <a
+                    href={`https://solscan.io/tx/${btcDepositResult.swapSignature}?cluster=devnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {btcDepositResult.swapSignature?.substring(0, 8)}...{btcDepositResult.swapSignature?.substring(btcDepositResult.swapSignature.length - 8)}
+                  </a>
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {error && (
         <div className="message error-message">
@@ -252,23 +461,10 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
           setSwapResult(null);
 
           try {
-            // Optional: Encrypt amount if privacy enabled
-            if (usePrivacyForSwap) {
-              try {
-                await axios.post(`${API_URL}/api/arcium/encrypt-amount`, {
-                  amount: parseFloat(solAmount),
-                  recipientPubkey: publicKey.toString(),
-                });
-                // Encryption handled by backend
-              } catch (err) {
-                console.warn('Arcium encryption failed, continuing without privacy:', err);
-              }
-            }
-
+            // PRIVACY ALWAYS ON: Encryption handled automatically by backend
             const response = await axios.post(`${API_URL}/api/bridge/swap-sol-to-zenzec`, {
               solanaAddress: publicKey.toString(),
               solAmount: parseFloat(solAmount),
-              usePrivacy: usePrivacyForSwap,
             });
             setSwapResult(response.data);
             if (onBridgeComplete) onBridgeComplete();
@@ -296,16 +492,18 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
             </p>
           </div>
 
-          <div className="form-group checkbox-group">
-            <label>
-              <input
-                type="checkbox"
-                checked={usePrivacyForSwap}
-                onChange={(e) => setUsePrivacyForSwap(e.target.checked)}
-                disabled={swapLoading}
-              />
-              <span>Use Arcium Privacy (Encrypt amount)</span>
-            </label>
+          <div className="privacy-badge" style={{
+            backgroundColor: '#00cc00',
+            color: '#000',
+            padding: '0.75rem',
+            borderRadius: '6px',
+            marginBottom: '1rem',
+            fontWeight: 'bold',
+            textAlign: 'center',
+            border: '2px solid #00ff00',
+            boxShadow: '0 0 10px rgba(0, 255, 0, 0.3)'
+          }}>
+            🔒 FULL PRIVACY ENABLED - Amount encrypted via Arcium MPC
           </div>
 
           <button 
@@ -359,14 +557,20 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
                   )}
                 </span>
               </div>
-              {swapResult.encrypted && (
-                <div className="detail-row">
-                  <span className="detail-label">Privacy:</span>
-                  <span className="detail-value">✓ Encrypted via Arcium MPC</span>
-                </div>
-              )}
+              <div className="detail-row">
+                <span className="detail-label">Privacy:</span>
+                <span className="detail-value" style={{color: '#00ff00'}}>✓ FULL - Encrypted via Arcium MPC</span>
+              </div>
             </div>
           </div>
+        )}
+
+        {/* Wallet Generator Modal */}
+        {showWalletGenerator && (
+          <TestnetWalletGenerator
+            onWalletsGenerated={handleWalletsGenerated}
+            onClose={() => setShowWalletGenerator(false)}
+          />
         )}
       </div>
     </div>

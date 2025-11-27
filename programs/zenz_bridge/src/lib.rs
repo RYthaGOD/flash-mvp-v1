@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, MintTo, Burn};
 use anchor_spl::associated_token::AssociatedToken;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("7ac8wtD5S9BRutHBMUoKMjpYepKSHVCgGaoN1etLjkd4");
 
 #[program]
 pub mod zenz_bridge {

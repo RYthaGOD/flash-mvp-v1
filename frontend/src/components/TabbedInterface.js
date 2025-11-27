@@ -4,11 +4,7 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { PublicKey } from '@solana/web3.js';
 import { getAssociatedTokenAddress, getAccount } from '@solana/spl-token';
 import axios from 'axios';
-import BridgeTab from './tabs/BridgeTab';
-import ZcashTab from './tabs/ZcashTab';
-import ArciumTab from './tabs/ArciumTab';
-import TokenManagementTab from './tabs/TokenManagementTab';
-import TransactionHistoryTab from './tabs/TransactionHistoryTab';
+import SimpleDemo from './SimpleDemo';
 import './TabbedInterface.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -17,7 +13,6 @@ const ZENZEC_MINT = process.env.REACT_APP_ZENZEC_MINT || '';
 function TabbedInterface() {
   const { publicKey, connected } = useWallet();
   const { connection } = useConnection();
-  const [activeTab, setActiveTab] = useState('bridge');
   const [bridgeInfo, setBridgeInfo] = useState(null);
   const [tokenBalance, setTokenBalance] = useState(null);
   const [solBalance, setSolBalance] = useState(null);
@@ -65,20 +60,14 @@ function TabbedInterface() {
   };
 
 
-  const tabs = [
-    { id: 'bridge', name: 'Bridge', icon: '🌉' },
-    { id: 'zcash', name: 'Zcash', icon: '🛡️' },
-    { id: 'arcium', name: 'Privacy', icon: '🔐' },
-    { id: 'tokens', name: 'Tokens', icon: '🪙' },
-    { id: 'history', name: 'History', icon: '📜' },
-  ];
+  // No tabs - simplified demo
 
   return (
     <div className="tabbed-interface">
       <div className="interface-header">
         <div className="header-content">
           <h1 className="app-title">FLASH Bridge</h1>
-          <p className="app-subtitle">BTC → ZEC (shielded) → Solana</p>
+          <p className="app-subtitle">BTC → zenZEC bridging made simple</p>
           
           {/* Bridge Status */}
           {bridgeInfo && (
@@ -115,59 +104,9 @@ function TabbedInterface() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="tabs-container">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <span className="tab-icon">{tab.icon}</span>
-            <span className="tab-name">{tab.name}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
-      <div className="tab-content">
-        {activeTab === 'bridge' && (
-          <BridgeTab
-            publicKey={publicKey}
-            connected={connected}
-            bridgeInfo={bridgeInfo}
-            onBridgeComplete={fetchBalances}
-          />
-        )}
-        {activeTab === 'zcash' && (
-          <ZcashTab
-            publicKey={publicKey}
-            connected={connected}
-          />
-        )}
-        {activeTab === 'arcium' && (
-          <ArciumTab
-            publicKey={publicKey}
-            connected={connected}
-          />
-        )}
-        {activeTab === 'tokens' && (
-          <TokenManagementTab
-            publicKey={publicKey}
-            connected={connected}
-            connection={connection}
-            tokenBalance={tokenBalance}
-            solBalance={solBalance}
-            onActionComplete={fetchBalances}
-          />
-        )}
-        {activeTab === 'history' && (
-          <TransactionHistoryTab
-            publicKey={publicKey}
-            connected={connected}
-            connection={connection}
-          />
-        )}
+      {/* Simple Demo Content */}
+      <div className="demo-content">
+        <SimpleDemo />
       </div>
 
       <div className="warning-box">

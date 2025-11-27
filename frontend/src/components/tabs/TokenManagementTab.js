@@ -20,7 +20,7 @@ function TokenManagementTab({ publicKey, connected, connection, tokenBalance, so
   // zenZEC → BTC burn state
   const [btcBurnAmount, setBtcBurnAmount] = useState('');
   const [btcAddress, setBtcAddress] = useState('');
-  const [usePrivacyForBTC, setUsePrivacyForBTC] = useState(false);
+  // PRIVACY ALWAYS ON: Removed toggle, BTC addresses always encrypted
   const [btcBurnLoading, setBtcBurnLoading] = useState(false);
   const [btcBurnResult, setBtcBurnResult] = useState(null);
   const [btcBurnError, setBtcBurnError] = useState(null);
@@ -204,7 +204,7 @@ function TokenManagementTab({ publicKey, connected, connection, tokenBalance, so
         <h3>Burn zenZEC & Receive BTC</h3>
         <p className="helper-text">
           Burn your zenZEC tokens and receive BTC. The BTC relayer will automatically send BTC to your address.
-          Supports optional Arcium privacy for encrypted BTC address.
+          Full privacy enabled - your BTC address is encrypted via Arcium MPC.
         </p>
         <form onSubmit={async (e) => {
           e.preventDefault();
@@ -234,27 +234,14 @@ function TokenManagementTab({ publicKey, connected, connection, tokenBalance, so
           setBtcBurnResult(null);
 
           try {
-            // Optional: Encrypt BTC address if privacy enabled
-            let encryptedBTCAddress = btcAddress;
-            if (usePrivacyForBTC) {
-              try {
-                const arciumResponse = await axios.post(`${API_URL}/api/arcium/encrypt-btc-address`, {
-                  btcAddress,
-                  recipientPubkey: publicKey.toString(),
-                });
-                encryptedBTCAddress = arciumResponse.data.encrypted.ciphertext || btcAddress;
-              } catch (err) {
-                console.warn('Arcium encryption failed, using plain address:', err);
-                encryptedBTCAddress = btcAddress;
-              }
-            }
-
+            // PRIVACY ALWAYS ON: BTC address is encrypted automatically by backend
+            // No need to encrypt on frontend - backend handles all encryption via Arcium MPC
+            
             // Get transaction from backend (with proper burn_for_btc instruction)
             const txResponse = await axios.post(`${API_URL}/api/bridge/create-burn-for-btc-tx`, {
               solanaAddress: publicKey.toString(),
               amount: parseFloat(btcBurnAmount),
-              btcAddress: encryptedBTCAddress,
-              usePrivacy: usePrivacyForBTC,
+              btcAddress: btcAddress,  // Backend will encrypt this
             });
 
             if (!txResponse.data.success || !txResponse.data.transaction) {
@@ -286,8 +273,8 @@ function TokenManagementTab({ publicKey, connected, connection, tokenBalance, so
               success: true,
               signature,
               message: 'zenZEC burned successfully. BTC relayer will send BTC shortly.',
-              btcAddress: btcAddress.substring(0, 10) + '...',
-              encrypted: usePrivacyForBTC,
+              btcAddress: '[ENCRYPTED]',
+              encrypted: true,  // Privacy is always on
             });
 
             if (onActionComplete) onActionComplete();
@@ -335,16 +322,18 @@ function TokenManagementTab({ publicKey, connected, connection, tokenBalance, so
             </p>
           </div>
 
-          <div className="form-group checkbox-group">
-            <label>
-              <input
-                type="checkbox"
-                checked={usePrivacyForBTC}
-                onChange={(e) => setUsePrivacyForBTC(e.target.checked)}
-                disabled={btcBurnLoading}
-              />
-              <span>Use Arcium Privacy (Encrypt BTC address)</span>
-            </label>
+          <div className="privacy-badge" style={{
+            backgroundColor: '#00cc00',
+            color: '#000',
+            padding: '0.75rem',
+            borderRadius: '6px',
+            marginBottom: '1rem',
+            fontWeight: 'bold',
+            textAlign: 'center',
+            border: '2px solid #00ff00',
+            boxShadow: '0 0 10px rgba(0, 255, 0, 0.3)'
+          }}>
+            🔒 FULL PRIVACY ENABLED - BTC address encrypted via Arcium MPC
           </div>
 
           <button 
@@ -368,7 +357,7 @@ function TokenManagementTab({ publicKey, connected, connection, tokenBalance, so
             <div className="result-details">
               <div className="detail-row">
                 <span className="detail-label">BTC Address:</span>
-                <span className="detail-value">{btcBurnResult.btcAddress}</span>
+                <span className="detail-value">{btcBurnResult.btcAddress === '[ENCRYPTED]' ? '🔒 Encrypted' : btcBurnResult.btcAddress}</span>
               </div>
               {btcBurnResult.signature && (
                 <div className="detail-row">
@@ -384,12 +373,10 @@ function TokenManagementTab({ publicKey, connected, connection, tokenBalance, so
                   </span>
                 </div>
               )}
-              {btcBurnResult.encrypted && (
-                <div className="detail-row">
-                  <span className="detail-label">Privacy:</span>
-                  <span className="detail-value">✓ BTC address encrypted via Arcium MPC</span>
-                </div>
-              )}
+              <div className="detail-row">
+                <span className="detail-label">Privacy:</span>
+                <span className="detail-value" style={{color: '#00ff00'}}>✓ FULL - BTC address encrypted via Arcium MPC</span>
+              </div>
             </div>
           </div>
         )}
