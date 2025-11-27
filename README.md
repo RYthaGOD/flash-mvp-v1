@@ -334,9 +334,8 @@ flash-bridge/
 ## 📞 **Contact**
 
 **Team FLASH Bridge**
-- **MXE Implementation:** `flash-bridge-mxe/` (Show to Arcium)
-- **API Key Request:** Use `ARCIUM_CONTACT_TEMPLATE.md`
-- **GitHub:** [Repository](https://github.com/your-org/flash-bridge)
+X- @moneybag_fin
+TG- @RYthaGOD
 
 ---
 
