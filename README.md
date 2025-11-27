@@ -274,17 +274,6 @@ See [`HACKATHON_DEMO.md`](./HACKATHON_DEMO.md) for complete 10-minute demo scrip
 
 ---
 
-## 📞 **Get Arcium API Key**
-
-**Our custom MXE implementation demonstrates serious commitment.** Contact Arcium:
-
-1. **Email:** Use template in `ARCIUM_CONTACT_TEMPLATE.md`
-2. **Show:** Our complete MXE in `flash-bridge-mxe/`
-3. **Request:** API key for custom bridge operations
-4. **Deploy:** Launch real MPC privacy operations
-
----
-
 ## 🤝 **Contributing**
 
 We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
