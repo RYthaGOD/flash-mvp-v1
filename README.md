@@ -222,8 +222,6 @@ User sends SOL → zenZEC minted → BTC transferred via relayer
 ## 🤝 Community & Support
 
 ### Join the Community
-- **Discord:** [discord.gg/flash-bridge](https://discord.gg/flash-bridge)
-- **Twitter:** [@FlashBridge](https://twitter.com/FlashBridge)
 - **GitHub Discussions:** Ask questions, share ideas
 - **Newsletter:** Weekly privacy & cross-chain updates
 
@@ -312,8 +310,6 @@ npm run dev    # Development mode
 
 **Team FLASH Bridge**
 - **Email:** team@flash-bridge.com
-- **Twitter:** [@FlashBridge](https://twitter.com/FlashBridge)
-- **Discord:** [discord.gg/flash-bridge](https://discord.gg/flash-bridge)
 - **LinkedIn:** [Flash Bridge](https://linkedin.com/company/flash-bridge)
 
 ---
