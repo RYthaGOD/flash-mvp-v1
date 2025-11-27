@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+      working-directory: ./backend
+
+    - name: Run linting
+      run: npm run lint
+      working-directory: ./backend
+
+    - name: Run tests
+      run: npm test
+      working-directory: ./backend
+      env:
+        CI: true
+
+    - name: Run crash recovery tests
+      run: node test-crash-recovery.js
+      working-directory: ./backend
+
+    - name: Run crypto proofs tests
+      run: node test-crypto-proofs.js
+      working-directory: ./backend
+
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+      working-directory: ./backend
+
+    - name: Run ESLint
+      run: npx eslint . --ext .js
+      working-directory: ./backend
+      continue-on-error: true
+
+    - name: Run code coverage
+      run: npm run test:coverage
+      working-directory: ./backend
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        directory: ./backend/coverage

@@ -1,266 +1,263 @@
 # Contributing to FLASH Bridge
 
-Thank you for your interest in contributing to FLASH Bridge! We welcome contributions from developers of all skill levels. This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to FLASH Bridge! We welcome contributions from the community to help build the future of privacy-preserving cross-chain DeFi.
 
-## 🚀 Quick Start
+## 📋 Table of Contents
 
-1. **Fork** the repository on GitHub
-2. **Clone** your fork locally
-3. **Set up** development environment
-4. **Create** a feature branch
-5. **Make** your changes
-6. **Test** thoroughly
-7. **Submit** a pull request
+- [Code of Conduct](#code-of-conduct)
+- [How to Contribute](#how-to-contribute)
+- [Development Setup](#development-setup)
+- [Development Workflow](#development-workflow)
+- [Testing](#testing)
+- [Security Considerations](#security-considerations)
+- [Documentation](#documentation)
+
+## 🤝 Code of Conduct
+
+This project follows our [Code of Conduct](./CODE_OF_CONDUCT.md). By participating, you agree to uphold this code. Please report any unacceptable behavior to team@flash-bridge.com.
+
+## 🚀 How to Contribute
+
+### Types of Contributions
+
+- **🐛 Bug Reports**: Found a bug? [Open an issue](./.github/ISSUE_TEMPLATE/bug_report.md)
+- **✨ Feature Requests**: Have an idea? [Submit a feature request](./.github/ISSUE_TEMPLATE/feature_request.md)
+- **🔧 Code Contributions**: Want to fix/improve something?
+- **📚 Documentation**: Help improve our docs
+- **🧪 Testing**: Add or improve tests
+- **🔒 Security**: Report security issues responsibly
+
+### Quick Start for Contributors
+
+1. **Fork** the repository
+2. **Clone** your fork: `git clone https://github.com/yourusername/flash-bridge.git`
+3. **Create** a feature branch: `git checkout -b feature/your-feature-name`
+4. **Make** your changes
+5. **Test** your changes thoroughly
+6. **Commit** with clear messages: `git commit -m "feat: add new feature"`
+7. **Push** to your fork: `git push origin feature/your-feature-name`
+8. **Open** a Pull Request
 
 ## 🛠️ Development Setup
 
 ### Prerequisites
-- Node.js 18+ and npm 8+
-- Git
-- (Optional) Solana CLI for local development
-- (Optional) Rust/Anchor for Solana program development
 
-### Setup Commands
+- **Node.js**: v18.0.0 or higher
+- **Git**: Latest version
+- **Code Editor**: VS Code recommended (with ESLint and Prettier extensions)
+
+### Local Development Setup
 
 ```bash
-# Clone your fork
+# 1. Clone the repository
 git clone https://github.com/yourusername/flash-bridge.git
 cd flash-bridge
 
-# Install all dependencies
-npm run install:all
+# 2. Set up backend
+cd backend
+cp .env.example .env  # Configure your environment variables
+npm install
+npm run dev  # For development with hot reload
 
-# Start development servers
-npm run demo  # Starts both backend and frontend
+# 3. Set up frontend (in new terminal)
+cd ../frontend
+npm install
+npm start
 
-# Or run individually:
-npm run start:backend   # Backend on :3001
-npm run start:frontend  # Frontend on :3000
+# 4. Optional: Set up local Solana validator
+solana-test-validator --reset
 ```
 
 ### Environment Configuration
 
-```bash
-# Copy and configure environment
-cd backend
-cp .env.example .env
-echo "ENABLE_ARCIUM_MPC=true" >> .env
+Create `.env` files based on the examples:
 
-# Run configuration check
-npm run check
+```env
+# Backend .env
+ENABLE_ARCIUM_MPC=true
+SOLANA_RPC_URL=https://api.devnet.solana.com
+PORT=3001
+
+# Frontend .env
+REACT_APP_API_URL=http://localhost:3001
 ```
 
-## 📋 Contribution Guidelines
+## 🔄 Development Workflow
 
-### Code Style
-- Use TypeScript for type safety
-- Follow ESLint configuration
-- Use Prettier for code formatting
-- Write meaningful commit messages
-- Add JSDoc comments for public APIs
+### Branch Naming Convention
 
-### Commit Messages
+- `feature/description`: New features
+- `fix/description`: Bug fixes
+- `docs/description`: Documentation updates
+- `test/description`: Testing improvements
+- `refactor/description`: Code refactoring
+
+### Commit Message Format
+
+We follow conventional commit format:
+
 ```
-feat: add new privacy verification endpoint
-fix: resolve ESLint error in TokenManagementTab
+type(scope): description
+
+[optional body]
+
+[optional footer]
+```
+
+Types:
+- `feat`: New features
+- `fix`: Bug fixes
+- `docs`: Documentation
+- `style`: Code style changes
+- `refactor`: Code refactoring
+- `test`: Testing
+- `chore`: Maintenance
+
+Examples:
+```
+feat: add cryptographic proof verification
+fix: resolve memory leak in proof cache
 docs: update API documentation
-test: add unit tests for bridge service
-refactor: simplify MPC integration logic
+test: add integration tests for bridge endpoints
 ```
 
-### Testing
-- Write unit tests for new features
-- Add integration tests for API endpoints
-- Test with both mock and real services
-- Ensure all tests pass before submitting PR
+### Pull Request Process
+
+1. **Create PR**: Use our [PR template](./.github/PULL_REQUEST_TEMPLATE.md)
+2. **Code Review**: At least one maintainer review required
+3. **CI Checks**: All tests must pass
+4. **Security Review**: Security implications assessed
+5. **Merge**: Squash merge with descriptive commit message
+
+## 🧪 Testing
+
+### Running Tests
+
+```bash
+# Backend tests
+cd backend
+npm test                    # Run all tests
+npm run test:watch         # Watch mode
+npm run test:coverage      # With coverage report
+node test-crypto-proofs.js # Cryptographic proof tests
+node test-crash-recovery.js # Crash recovery tests
+
+# Frontend tests
+cd frontend
+npm test
+```
+
+### Test Categories
+
+- **Unit Tests**: Individual functions and modules
+- **Integration Tests**: API endpoints and service interactions
+- **Security Tests**: Privacy and cryptographic validation
+- **Crash Recovery Tests**: System stability under failure conditions
+
+### Writing Tests
+
+```javascript
+const { expect } = require('chai');
+
+describe('Cryptographic Proofs', () => {
+  describe('generateTransactionProof()', () => {
+    it('should generate valid proof for bridge transaction', async () => {
+      const proof = await generateTransactionProof(transactionData, 'bridge');
+      expect(proof).to.have.property('transactionHash');
+      expect(proof).to.have.property('signature');
+    });
+  });
+});
+```
+
+## 🔒 Security Considerations
+
+### Privacy-First Development
+
+FLASH Bridge prioritizes user privacy. When contributing:
+
+- **Never log sensitive data** (amounts, addresses, private keys)
+- **Use MPC encryption** for any transaction processing
+- **Implement proper validation** for all inputs
+- **Consider privacy implications** of new features
+
+### Security Checklist
+
+Before submitting a PR, ensure:
+
+- [ ] No sensitive data logged or exposed
+- [ ] Input validation implemented
+- [ ] Error messages don't leak information
+- [ ] MPC encryption maintained where required
+- [ ] Cryptographic operations properly implemented
+- [ ] Tests include security scenarios
+
+### Reporting Security Issues
+
+See our [Security Policy](./SECURITY.md) for responsible disclosure.
+
+## 📚 Documentation
+
+### Documentation Standards
+
+- **README.md**: Updated for any user-facing changes
+- **Code Comments**: JSDoc format for functions
+- **API Documentation**: OpenAPI/Swagger format
+- **Inline Comments**: Explain complex logic
+
+### Documentation Updates
+
+When making changes:
+
+1. **Update README**: If adding new features or changing usage
+2. **Update API Docs**: For any API changes
+3. **Add Code Comments**: For complex algorithms
+4. **Update Examples**: If usage patterns change
 
 ## 🎯 Areas for Contribution
 
-### 🔒 Privacy & Security
-- Enhance MPC integration
-- Add additional privacy layers
-- Security hardening
-- Audit preparation
+### High Priority
 
-### 🌐 Multi-Chain Support
-- Add support for new blockchains (ETH, BSC, MATIC)
-- Improve existing chain integrations
-- Cross-chain messaging protocols
+- **🔒 Privacy Enhancements**: Improve MPC implementation
+- **⚡ Performance Optimization**: Reduce transaction latency
+- **🧪 Testing Coverage**: Increase test coverage to 80%+
+- **📊 Monitoring**: Add better observability and metrics
 
-### ⚡ Performance & Scalability
-- Optimize transaction processing
-- Improve API response times
-- Database query optimization
-- Caching strategies
+### Medium Priority
 
-### 🎨 User Experience
-- Mobile app development
-- UI/UX improvements
-- Accessibility enhancements
-- Internationalization (i18n)
+- **🌐 Multi-Chain Support**: Additional blockchain integrations
+- **🎨 Frontend Improvements**: Better user experience
+- **📱 Mobile Support**: React Native mobile app
+- **🔧 Developer Tools**: CLI tools and SDKs
 
-### 📚 Documentation & Education
-- API documentation
-- Tutorial creation
-- Video content
-- Developer guides
+### Future Opportunities
 
-### 🧪 Testing & Quality
-- Unit test coverage
-- Integration testing
-- E2E test automation
-- Performance testing
+- **⚡ Layer 2 Integration**: Optimistic bridging
+- **🔗 Cross-Chain DEX**: Automated token swaps
+- **🏛️ Institutional Features**: Advanced compliance tools
+- **📈 Analytics**: Transaction analytics and insights
 
-## 🔄 Pull Request Process
+## 💡 Getting Help
 
-### 1. Choose an Issue
-- Check [GitHub Issues](https://github.com/yourusername/flash-bridge/issues) for open tasks
-- Comment on the issue to indicate you're working on it
-- Create an issue if you have a new idea
+### Resources
 
-### 2. Create a Branch
-```bash
-# Create feature branch
-git checkout -b feature/your-feature-name
+- **📖 [README.md](./README.md)**: Quick start guide
+- **🏗️ [ARCHITECTURE.md](./ARCHITECTURE.md)**: System design
+- **🔒 [PRIVACY_FEATURES.md](./PRIVACY_FEATURES.md)**: Privacy implementation
+- **🧪 [Testing Guide](./TESTING_GUIDE.md)**: Testing procedures
 
-# Or for bug fixes
-git checkout -b fix/issue-number-description
-```
+### Communication
 
-### 3. Make Changes
-- Follow the existing code patterns
-- Add tests for new functionality
-- Update documentation as needed
-- Ensure all checks pass
+- **💬 GitHub Discussions**: General questions and ideas
+- **🐛 GitHub Issues**: Bug reports and feature requests
+- **📧 Email**: team@flash-bridge.com for sensitive matters
 
-### 4. Test Your Changes
-```bash
-# Run all tests
-npm test
+## 🙏 Recognition
 
-# Run linting
-npm run lint
+Contributors will be:
+- Listed in repository contributors
+- Mentioned in release notes
+- Eligible for bug bounty rewards
+- Invited to governance discussions
 
-# Manual testing
-# - Test bridge functionality
-# - Test privacy features
-# - Test error scenarios
-```
-
-### 5. Submit Pull Request
-- Provide a clear description of changes
-- Reference related issues
-- Include screenshots for UI changes
-- Request review from maintainers
-
-### PR Template
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Testing
-- [ ] Unit tests added/updated
-- [ ] Integration tests added/updated
-- [ ] Manual testing completed
-
-## Screenshots (if applicable)
-Add screenshots of UI changes
-
-## Related Issues
-Closes #123
-```
-
-## 🐛 Bug Reports
-
-### Good Bug Report
-- Clear title describing the issue
-- Steps to reproduce
-- Expected vs actual behavior
-- Environment details (OS, Node version, etc.)
-- Screenshots or error logs
-- Code snippets if applicable
-
-### Bug Report Template
-```markdown
-**Describe the bug**
-A clear description of what the bug is.
-
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
-
-**Expected behavior**
-A clear description of what you expected to happen.
-
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
-
-**Environment:**
-- OS: [e.g., macOS, Windows]
-- Browser: [e.g., Chrome, Safari]
-- Node Version: [e.g., 18.17.0]
-```
-
-## 💡 Feature Requests
-
-### Good Feature Request
-- Clear title and description
-- Use case and benefits
-- Implementation suggestions
-- Mockups or examples
-- Related issues or PRs
-
-### Feature Request Template
-```markdown
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is.
-
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
-
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
-
-**Additional context**
-Add any other context or screenshots about the feature request here.
-```
-
-## 📞 Communication
-
-### Where to Ask Questions
-- **GitHub Discussions**: General questions and ideas
-- **GitHub Issues**: Bug reports and feature requests
-- **Discord**: Real-time chat (#dev-support channel)
-
-### Getting Help
-- Check existing documentation first
-- Search GitHub issues for similar problems
-- Ask in Discord for quick questions
-- Create GitHub issue for detailed help
-
-## 🎖️ Recognition
-
-Contributors are recognized in:
-- **README.md** contributors section
-- **GitHub repository insights**
-- **Monthly contributor spotlight**
-- **Hackathon and grant acknowledgments**
-
-## 📜 License
-
-By contributing to FLASH Bridge, you agree that your contributions will be licensed under the MIT License.
-
-## 🙏 Thank You
-
-Your contributions help build the privacy-preserving future of cross-chain DeFi. Every contribution, no matter how small, makes a difference!
-
-Happy coding! 🚀🔒
+Thank you for contributing to FLASH Bridge and helping build the future of privacy-preserving DeFi! 🚀✨

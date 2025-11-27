@@ -1,95 +1,123 @@
-# 🔒 Security Policy
+# Security Policy
+
+## 🔒 Security Overview
+
+FLASH Bridge takes security seriously. As a privacy-preserving cross-chain bridge handling cryptocurrency transactions, we implement multiple layers of security:
+
+- **MPC Encryption**: Arcium Multi-Party Computation for transaction privacy
+- **Cryptographic Proofs**: Institutional-grade transaction verification
+- **Crash Prevention**: Enterprise stability and automatic recovery
+- **Input Validation**: Comprehensive sanitization and validation
 
 ## 🚨 Reporting Security Vulnerabilities
 
-We take the security of FLASH Bridge seriously. If you believe you've found a security vulnerability, please report it to us as described below.
+We appreciate your help in keeping FLASH Bridge and its users secure. If you discover a security vulnerability, please report it responsibly.
 
-### 📧 How to Report
+### How to Report
 
 **Please DO NOT report security vulnerabilities through public GitHub issues.**
 
 Instead, please report security vulnerabilities by emailing:
-- **security@flash-bridge.com**
-- Include "SECURITY VULNERABILITY" in the subject line
+**security@flash-bridge.com**
 
-### ⏱️ Response Timeline
+### What to Include
 
-- **Initial Response**: Within 24 hours
-- **Vulnerability Assessment**: Within 72 hours
-- **Fix Development**: Within 7-14 days for critical issues
-- **Public Disclosure**: After fix is deployed and tested
+When reporting a security vulnerability, please include:
 
-### 🏷️ What to Include
+- **Description**: A clear description of the vulnerability
+- **Steps to Reproduce**: Detailed steps to reproduce the issue
+- **Impact**: Potential impact on users or the system
+- **Environment**: Version, network, and any relevant configuration
+- **Proof of Concept**: If available, include a proof of concept
 
-Please include the following information in your report:
-- A clear description of the vulnerability
-- Steps to reproduce the issue
-- Potential impact and severity
-- Any suggested fixes (optional)
-- Your contact information for follow-up
+### Our Response Process
 
-### 🎯 Our Commitment
+1. **Acknowledgment**: We'll acknowledge receipt within 24 hours
+2. **Investigation**: We'll investigate the report thoroughly
+3. **Updates**: We'll provide regular updates on our progress
+4. **Resolution**: We'll fix validated vulnerabilities and release updates
+5. **Disclosure**: We'll coordinate disclosure timing with you
 
-- We will acknowledge receipt of your report within 24 hours
-- We will provide a more detailed response within 72 hours indicating our next steps
-- We will keep you informed about our progress throughout the process
-- We will credit you (if desired) once the issue is resolved
+### Bounty Program
 
-## 🛡️ Security Best Practices
+FLASH Bridge offers a bug bounty program for security researchers. Rewards are determined based on:
 
-### For Users
-- Always verify transaction details before signing
-- Use hardware wallets for large amounts
-- Keep your wallet software updated
-- Be cautious with third-party applications
+- **Severity**: Critical, High, Medium, Low
+- **Impact**: User funds, privacy, system stability
+- **Quality**: Clarity and completeness of the report
 
-### For Developers
-- Never commit private keys or secrets
-- Use environment variables for sensitive configuration
-- Implement proper input validation
-- Follow the principle of least privilege
+### Eligibility
 
-## 🔍 Known Security Considerations
+- First reporter of a valid vulnerability
+- Following responsible disclosure practices
+- Allowing reasonable time for fixes
+- Not exploiting the vulnerability for personal gain
 
-### Current Implementation
-- **MPC Privacy**: Uses simulated encryption for MVP
-- **Smart Contracts**: Not audited for production use
-- **API Security**: Basic rate limiting implemented
-- **Key Management**: Environment-based configuration
+## 🛡️ Security Measures
 
-### Production Requirements
-- Smart contract security audit
-- Penetration testing
-- Formal verification of MPC implementation
-- Hardware security modules (HSM)
-- Multi-signature controls
+### Current Security Features
 
-## 🏆 Bug Bounty Program
+#### Privacy & Encryption
+- **Arcium MPC**: Zero-knowledge transaction processing
+- **Zcash Shielding**: Additional privacy layer for BTC conversion
+- **Encrypted Addresses**: BTC withdrawal addresses are encrypted
+- **Private Verification**: Transaction verification without data exposure
 
-We plan to launch a bug bounty program once the system reaches production readiness. Stay tuned for announcements on our Discord and Twitter.
+#### Transaction Security
+- **Cryptographic Proofs**: HMAC-SHA256 signatures for transaction integrity
+- **Merkle Trees**: Inclusion proofs for audit trails
+- **Chain of Custody**: Complete transaction lifecycle tracking
+- **Input Validation**: Comprehensive sanitization of all inputs
 
-### Scope (Future)
-- Smart contract vulnerabilities
-- API security issues
-- Privacy implementation flaws
-- Key management weaknesses
-- Cross-chain bridge logic errors
+#### System Security
+- **Crash Prevention**: Automatic error recovery and health monitoring
+- **Rate Limiting**: DDoS protection and abuse prevention
+- **Circuit Breakers**: External API failure protection
+- **Memory Management**: Garbage collection and leak prevention
 
-### Out of Scope
-- Denial of service attacks
-- Social engineering attacks
-- Physical security issues
-- Third-party service vulnerabilities
+## 🔐 Best Practices for Users
+
+### Protecting Your Funds
+- **Verify Transactions**: Always check cryptographic proofs
+- **Use Trusted Networks**: Only transact on mainnet with real funds
+- **Backup Keys**: Keep secure backups of important information
+- **Monitor Activity**: Regularly check your transaction history
+
+### Privacy Considerations
+- **Address Reuse**: Avoid reusing BTC addresses for privacy
+- **Network Analysis**: Be aware of blockchain analysis techniques
+- **Transaction Timing**: Consider privacy implications of transaction timing
+- **Amount Correlation**: Large round amounts may reduce privacy
+
+## 🚫 Prohibited Activities
+
+The following activities are strictly prohibited:
+
+- **Exploiting Vulnerabilities**: Using undiscovered vulnerabilities for personal gain
+- **Denial of Service**: Deliberately attempting to crash or overload the system
+- **Spam**: Creating excessive transactions or API calls
+- **Circumvention**: Attempting to bypass security measures
+- **Harassment**: Threatening other users or developers
 
 ## 📞 Contact Information
 
-- **Security Issues**: security@flash-bridge.com
-- **General Support**: team@flash-bridge.com
-- **Discord**: https://discord.gg/flash-bridge
-- **PGP Key**: Available upon request
+For security-related inquiries:
+- **Email**: security@flash-bridge.com
+- **PGP Key**: Available upon request for encrypted communications
+- **Response Time**: Within 24 hours for security reports
+
+## 🔄 Security Updates
+
+We regularly update our security measures and will communicate important security updates through:
+
+- GitHub Security Advisories
+- Email notifications to affected users
+- Blog posts and documentation updates
+
+## 🙏 Acknowledgments
+
+We thank the security research community for their contributions to keeping blockchain systems secure. Responsible disclosure helps make the entire ecosystem safer for everyone.
 
 ---
 
-## 🙏 Thank You
-
-We appreciate your help in keeping FLASH Bridge and its users secure. Responsible disclosure helps us protect the privacy-focused future of cross-chain DeFi.
+**FLASH Bridge - Privacy First, Security Always** 🛡️✨

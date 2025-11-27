@@ -1,64 +1,85 @@
-## 📝 Pull Request Description
+## 📋 Pull Request
 
-### 🔍 What does this PR do?
-Brief description of the changes made.
+### Description
+Brief description of the changes made in this PR.
 
-### 🎯 Related Issues
-Closes #123
-Addresses #456
-
-### ✅ Type of Change
+### Type of Change
 - [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
 - [ ] ✨ New feature (non-breaking change which adds functionality)
 - [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
 - [ ] 📚 Documentation update
-- [ ] 🔧 Code refactor
-- [ ] 🧪 Tests added/updated
-- [ ] 🎨 UI/UX improvements
+- [ ] 🔧 Refactoring (no functional changes)
+- [ ] 🧪 Testing (adding or updating tests)
 - [ ] 🔒 Security enhancement
 
-### 🧪 Testing
+### Changes Made
+
+#### Files Modified
+- `file1.js` - Description of changes
+- `file2.md` - Description of changes
+
+#### Key Changes
+1. Change 1 - Brief explanation
+2. Change 2 - Brief explanation
+3. Change 3 - Brief explanation
+
+### Testing
+
+#### Test Coverage
 - [ ] Unit tests added/updated
 - [ ] Integration tests added/updated
-- [ ] E2E tests added/updated
 - [ ] Manual testing completed
-- [ ] All tests pass
 
-### 📋 Checklist
-- [ ] Code follows project style guidelines
-- [ ] Documentation updated (if needed)
-- [ ] Breaking changes documented
-- [ ] Security implications reviewed
+#### Test Results
+```bash
+# Test command and output
+npm test
+# ✅ All tests passing
+```
+
+### Security Considerations
+- [ ] Security impact assessed
+- [ ] No sensitive data exposed
+- [ ] Input validation implemented
+- [ ] Error handling added
+
+### Privacy Considerations
+- [ ] Privacy impact assessed
+- [ ] No user data leaked
+- [ ] MPC encryption maintained
+- [ ] Cryptographic proofs working
+
+### Performance Impact
 - [ ] Performance impact assessed
+- [ ] No significant degradation
+- [ ] Memory usage acceptable
+- [ ] Response times maintained
 
-### 🎨 Screenshots/Visual Changes
-If this PR includes UI changes, add screenshots or videos showing:
-- Before/after comparison
-- New features in action
-- Mobile responsiveness
+### Breaking Changes
+- [ ] Breaking changes identified
+- [ ] Migration guide included (if applicable)
+- [ ] Backward compatibility maintained
 
-### 🔒 Security Considerations
-If this PR touches security-related code:
-- [ ] Security implications documented
-- [ ] Input validation added/updated
-- [ ] Authentication/authorization reviewed
-- [ ] Audit trail maintained
+### Documentation
+- [ ] README updated (if applicable)
+- [ ] API documentation updated
+- [ ] Code comments added
+- [ ] Usage examples provided
 
-### 🚀 Performance Impact
-- [ ] No performance regression
-- [ ] Memory usage optimized
-- [ ] Database queries optimized
-- [ ] API response times maintained
+### Checklist
+- [ ] Code follows project style guidelines
+- [ ] Linting passes
+- [ ] Tests pass
+- [ ] Documentation updated
+- [ ] Security review completed
+- [ ] Privacy review completed
 
-### 📈 Metrics/Measurements
-If applicable:
-- API response time improvements
-- Test coverage increase
-- Bundle size changes
-- Database query performance
+### Related Issues
+Closes #issue_number
+Relates to #issue_number
 
-### 🔗 Related PRs/Dependencies
-List any related PRs or dependencies that should be reviewed together.
+### Screenshots (if applicable)
+<!-- Add screenshots to help explain your changes -->
 
-### 🏷️ Additional Notes
-Any additional information reviewers should know about this PR.
+### Additional Notes
+<!-- Any additional information or context -->

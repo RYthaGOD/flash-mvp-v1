@@ -1,0 +1,19 @@
+# Global owners
+* @RYthaGOD
+
+# Backend code
+/backend/ @RYthaGOD
+
+# Frontend code
+/frontend/ @RYthaGOD
+
+# Smart contracts
+/programs/ @RYthaGOD
+
+# Documentation
+*.md @RYthaGOD
+/docs/ @RYthaGOD
+
+# Security-related files
+SECURITY.md @RYthaGOD
+.github/ @RYthaGOD
