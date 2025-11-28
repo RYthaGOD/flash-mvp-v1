@@ -335,9 +335,10 @@ flash-bridge/
 
 **Team FLASH Bridge**
 - **🐦 Twitter:** [@moneybag_fin](https://twitter.com/moneybag_fin)
+- **💬 Telegram:** @RYthaGOD
 - **MXE Implementation:** `flash-bridge-mxe/` (Show to Arcium)
 - **API Key Request:** Use `ARCIUM_CONTACT_TEMPLATE.md`
-- **GitHub:** [Repository](https://github.com/your-org/flash-bridge)
+- **GitHub:** [Repository](https://github.com/RYthaGOD/flash-mvp-copilot-merge-all-branches-for-demo)
 
 ---
 
