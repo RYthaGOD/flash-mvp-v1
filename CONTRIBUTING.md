@@ -14,7 +14,7 @@ Thank you for your interest in contributing to FLASH Bridge! We welcome contribu
 
 ## 🤝 Code of Conduct
 
-This project follows our [Code of Conduct](./CODE_OF_CONDUCT.md). By participating, you agree to uphold this code. Please report any unacceptable behavior to team@flash-bridge.com.
+This project follows our [Code of Conduct](./CODE_OF_CONDUCT.md). By participating, you agree to uphold this code. Please report any unacceptable behavior via Twitter: [@moneybag_fin](https://twitter.com/moneybag_fin).
 
 ## 🚀 How to Contribute
 
@@ -250,7 +250,7 @@ When making changes:
 
 - **💬 GitHub Discussions**: General questions and ideas
 - **🐛 GitHub Issues**: Bug reports and feature requests
-- **📧 Email**: team@flash-bridge.com for sensitive matters
+- **🐦 Twitter**: [@moneybag_fin](https://twitter.com/moneybag_fin) for sensitive matters
 
 ## 🙏 Recognition
 

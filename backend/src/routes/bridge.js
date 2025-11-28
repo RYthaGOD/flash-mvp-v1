@@ -122,35 +122,27 @@ router.post('/', validateBridgeRequest, asyncHandler(async (req, res) => {
       console.log(`Bitcoin payment verified: ${btcVerification.amountBTC} BTC`);
       console.log(`Confirmations: ${btcVerification.confirmations}`);
 
-      // STEP 2: Optional - Convert BTC → ZEC for privacy layer
-      reserveAmount = btcVerification.amount; // Default: use BTC amount (in satoshis)
-      reserveAsset = 'BTC';
-
-      if (useZecPrivacy) {
-        console.log('Converting BTC → ZEC for privacy layer...');
-        try {
-          const conversionResult = await converterService.convertBTCtoZEC(
-            btcVerification.amountBTC
-          );
-
-          console.log(`Conversion: ${btcVerification.amountBTC} BTC → ${conversionResult.zecAmount} ZEC`);
-
-          // If ZEC transaction hash is provided, verify it
-          if (conversionResult.zecTxHash) {
-            zecVerification = await zcashService.verifyShieldedTransaction(
-              conversionResult.zecTxHash
-            );
-
-            if (zecVerification.verified) {
-              reserveAmount = Math.floor(conversionResult.zecAmount * 100000000);
-              reserveAsset = 'ZEC';
-              console.log(`ZEC verification successful: ${conversionResult.zecAmount} ZEC`);
-            }
-          }
-        } catch (error) {
-          console.error('ZEC conversion error:', error);
-          console.log('Continuing with BTC reserve (conversion failed)');
-        }
+      // STEP 2: Calculate ZEC equivalent using exchange rate (simplified approach)
+      // This avoids actual exchange execution, fees, and liquidity requirements
+      console.log('Calculating ZEC equivalent using current exchange rate...');
+      try {
+        const exchangeRate = await converterService.getBTCtoZECRate();
+        const zecAmount = btcVerification.amountBTC * exchangeRate;
+        
+        console.log(`Exchange rate: 1 BTC = ${exchangeRate} ZEC`);
+        console.log(`Calculated: ${btcVerification.amountBTC} BTC → ${zecAmount} ZEC`);
+        
+        // Use ZEC amount (convert to smallest unit)
+        reserveAmount = Math.floor(zecAmount * 100000000); // Convert to smallest unit (8 decimals)
+        reserveAsset = 'ZEC';
+        
+        console.log(`Using ZEC equivalent: ${zecAmount} ZEC (${reserveAmount} smallest units)`);
+      } catch (error) {
+        console.error('Error calculating ZEC equivalent:', error);
+        // Fallback: Use BTC amount directly (1:1 ratio)
+        console.warn('Falling back to 1:1 BTC ratio');
+        reserveAmount = btcVerification.amount; // Use BTC amount in satoshis
+        reserveAsset = 'BTC';
       }
     }
 
@@ -188,17 +180,30 @@ router.post('/', validateBridgeRequest, asyncHandler(async (req, res) => {
       reserveAsset = 'ZEC';
     }
 
-    // STEP 3: Check reserve capacity
-    const currentReserve = reserveAsset === 'BTC' 
-      ? bitcoinService.getCurrentReserve()
-      : 0; // ZEC reserve would be tracked separately (in production, query on-chain)
+    // STEP 3: Check reserve capacity and determine transfer method
+    const useNativeZEC = process.env.USE_NATIVE_ZEC !== 'false' && 
+                         (process.env.NATIVE_ZEC_MINT || process.env.ZEC_MINT);
+    
+    let currentReserve = 0;
+    if (reserveAsset === 'BTC') {
+      currentReserve = bitcoinService.getCurrentReserve();
+    } else if (reserveAsset === 'ZEC' && useNativeZEC) {
+      // Check on-chain ZEC treasury balance
+      try {
+        const treasuryBalance = await solanaService.getTreasuryZECBalance();
+        currentReserve = Number(treasuryBalance);
+      } catch (error) {
+        console.warn('Could not check ZEC treasury balance:', error.message);
+        currentReserve = 0;
+      }
+    }
 
-    // For minting, use 1:1 ratio (1 BTC/ZEC = 1 zenZEC)
-    // Convert to zenZEC amount (using smallest unit for precision)
-    const mintAmount = Math.floor(reserveAmount); // 1:1 ratio
+    // For minting/transferring, use 1:1 ratio (1 BTC/ZEC = 1 zenZEC/native ZEC)
+    // Convert to amount (using smallest unit for precision)
+    const transferAmount = Math.floor(reserveAmount); // 1:1 ratio
 
-    if (mintAmount > currentReserve && currentReserve > 0) {
-      console.warn(`Reserve check: Requested ${mintAmount}, Available ${currentReserve}`);
+    if (transferAmount > currentReserve && currentReserve > 0) {
+      console.warn(`Reserve check: Requested ${transferAmount}, Available ${currentReserve}`);
       // In production, this would check on-chain reserve and reject if insufficient
     }
 
@@ -209,26 +214,50 @@ router.post('/', validateBridgeRequest, asyncHandler(async (req, res) => {
       ? `btc_${bitcoinTxHash.substring(0, 16)}_${Date.now()}`
       : `zec_${zcashTxHash.substring(0, 16)}_${Date.now()}`;
 
-    // STEP 5: Mint zenZEC on Solana
+    // STEP 5: Transfer native ZEC or mint zenZEC on Solana
     let solanaTxSignature = null;
     let mintStatus = 'pending';
+    let tokenType = 'zenZEC'; // Default
     
     try {
-      // Attempt to mint on Solana (works for both demo and verified modes)
-      console.log(`Minting ${mintAmount} zenZEC to ${solanaAddress}`);
-      console.log(`Reserve asset: ${reserveAsset}`);
-      console.log(`Swap to SOL: ${swapToSol || false}`);
-      
-      solanaTxSignature = await solanaService.mintZenZEC(solanaAddress, mintAmount);
-      mintStatus = 'confirmed';
-      console.log(`✓ Minting successful: ${solanaTxSignature}`);
+      // Use native ZEC if configured (for both BTC and ZEC flows)
+      // BTC flows now calculate ZEC equivalent, so we can use native ZEC for both
+      if (useNativeZEC && reserveAsset === 'ZEC') {
+        console.log(`Transferring ${transferAmount / 1e8} native ZEC to ${solanaAddress}`);
+        console.log(`Reserve asset: ${reserveAsset} (${isBitcoinFlow ? 'from BTC' : 'from ZEC'})`);
+        console.log(`Swap to SOL: ${swapToSol || false}`);
+        
+        // Check treasury balance before transfer
+        const treasuryBalance = await solanaService.getTreasuryZECBalance();
+        if (BigInt(transferAmount) > treasuryBalance) {
+          throw new APIError(503, 'Insufficient ZEC reserves', {
+            requested: transferAmount,
+            available: treasuryBalance.toString(),
+            message: 'Treasury does not have enough native ZEC. Please fund the treasury.'
+          });
+        }
+        
+        solanaTxSignature = await solanaService.transferNativeZEC(solanaAddress, transferAmount);
+        mintStatus = 'confirmed';
+        tokenType = 'native ZEC';
+        console.log(`✓ Native ZEC transfer successful: ${solanaTxSignature}`);
+      } else {
+        // Fallback to minting zenZEC (if native ZEC not configured or reserve asset is BTC)
+        console.log(`Minting ${transferAmount / 1e8} ${tokenType} to ${solanaAddress}`);
+        console.log(`Reserve asset: ${reserveAsset}`);
+        console.log(`Swap to SOL: ${swapToSol || false}`);
+        
+        solanaTxSignature = await solanaService.mintZenZEC(solanaAddress, transferAmount);
+        mintStatus = 'confirmed';
+        console.log(`✓ Minting successful: ${solanaTxSignature}`);
+      }
     } catch (error) {
-      console.error('Error minting zenZEC on Solana:', error);
-      // In demo mode, continue even if minting fails (for testing)
+      console.error(`Error ${useNativeZEC && isZcashFlow ? 'transferring native ZEC' : 'minting zenZEC'} on Solana:`, error);
+      // In demo mode, continue even if transfer/minting fails (for testing)
       if (!isDemoMode) {
         throw error;
       }
-      console.warn('Continuing in demo mode despite minting error');
+      console.warn('Continuing in demo mode despite transfer/minting error');
     }
 
     // Update local reserve tracking
@@ -242,7 +271,7 @@ router.post('/', validateBridgeRequest, asyncHandler(async (req, res) => {
         await databaseService.saveBridgeTransaction({
           txId,
           solanaAddress,
-          amount: mintAmount / 1e8, // Convert from smallest unit to zenZEC
+          amount: transferAmount / 1e8, // Convert from smallest unit
           reserveAsset,
           status: mintStatus,
           solanaTxSignature,
@@ -304,8 +333,8 @@ router.post('/', validateBridgeRequest, asyncHandler(async (req, res) => {
       swapToSol: swapToSol || false,
       status: mintStatus,
       message: isDemoMode
-        ? 'zenZEC minting initiated (demo mode - no transaction verification)'
-        : 'zenZEC minting successful',
+        ? `${tokenType} transfer initiated (demo mode - no transaction verification)`
+        : `${tokenType} transfer successful`,
       reserveAsset,
       demoMode: isDemoMode,
       solanaTxSignature: solanaTxSignature || null,
@@ -560,8 +589,10 @@ router.post('/swap-sol-to-zenzec', validateSwapRequest, asyncHandler(async (req,
 
     // ALWAYS encrypt amount via Arcium MPC
       const arciumService = require('../services/arcium');
+    const arciumStatus = arciumService.getStatus();
+    const mpcMode = arciumStatus.simulated ? 'SIMULATED' : 'REAL MPC';
+    console.log(`✓ Amount encrypted via Arcium MPC (${mpcMode})`);
     const encryptedAmount = await arciumService.encryptAmount(solAmountNum, solanaAddress);
-    console.log('✓ Amount encrypted via Arcium MPC');
 
     // Check if we're in demo mode (missing relayer keypair or mint)
     const isDemoMode = !solanaService.relayerKeypair || 

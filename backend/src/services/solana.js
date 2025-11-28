@@ -9,6 +9,8 @@ const getSolanaDeps = () => {
       const {
         getAssociatedTokenAddress,
         createAssociatedTokenAccountInstruction,
+        createTransferInstruction,
+        getAccount,
         TOKEN_PROGRAM_ID,
         ASSOCIATED_TOKEN_PROGRAM_ID
       } = require('@solana/spl-token');
@@ -25,6 +27,8 @@ const getSolanaDeps = () => {
         BN,
         getAssociatedTokenAddress,
         createAssociatedTokenAccountInstruction,
+        createTransferInstruction,
+        getAccount,
         TOKEN_PROGRAM_ID,
         ASSOCIATED_TOKEN_PROGRAM_ID
       };
@@ -50,6 +54,8 @@ const getSolanaDeps = () => {
         BN: class MockBN {},
         getAssociatedTokenAddress: async () => new MockPublicKey('mock-token-account'),
         createAssociatedTokenAccountInstruction: () => ({}),
+        createTransferInstruction: () => ({}),
+        getAccount: async () => ({ amount: '1000000000' }),
         TOKEN_PROGRAM_ID: new MockPublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
         ASSOCIATED_TOKEN_PROGRAM_ID: new MockPublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
       };
@@ -217,8 +223,8 @@ class SolanaService {
     }, 3, 2000); // 3 retries, 2s base delay
   }
 
-  async getOrCreateTokenAccount(userPubkey) {
-    const mintPubkey = new PublicKey(process.env.ZENZEC_MINT);
+  async getOrCreateTokenAccount(userPubkey, mintAddress = null) {
+    const mintPubkey = new PublicKey(mintAddress || process.env.ZENZEC_MINT);
     
     // Get ATA address (deterministic)
     const ata = await getAssociatedTokenAddress(
@@ -280,6 +286,159 @@ class SolanaService {
     }
     
     return ata;
+  }
+
+  /**
+   * Get native ZEC mint address
+   * @returns {PublicKey} Native ZEC mint address
+   */
+  getNativeZECMint() {
+    const deps = getSolanaDeps();
+    // Official native ZEC mint address on Solana
+    const OFFICIAL_NATIVE_ZEC_MINT = 'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS';
+    
+    const nativeZECMint = process.env.NATIVE_ZEC_MINT || 
+                         process.env.ZEC_MINT || 
+                         OFFICIAL_NATIVE_ZEC_MINT;
+    
+    return new deps.PublicKey(nativeZECMint);
+  }
+
+  /**
+   * Get treasury's ZEC token account
+   * @param {PublicKey} zecMint - Native ZEC mint address
+   * @returns {Promise<PublicKey>} Treasury ZEC token account address
+   */
+  async getTreasuryZECAccount(zecMint) {
+    if (!this.relayerKeypair) {
+      throw new Error('Relayer keypair not configured');
+    }
+
+    const deps = getSolanaDeps();
+    const treasuryPubkey = this.relayerKeypair.publicKey;
+    
+    const treasuryZECAccount = await deps.getAssociatedTokenAddress(
+      zecMint,
+      treasuryPubkey,
+      false,
+      deps.TOKEN_PROGRAM_ID,
+      deps.ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+    
+    // Check if treasury account exists
+    const accountInfo = await this.connection.getAccountInfo(treasuryZECAccount);
+    if (!accountInfo) {
+      throw new Error(
+        `Treasury ZEC account does not exist: ${treasuryZECAccount.toString()}. ` +
+        `Please fund the treasury with native ZEC first.`
+      );
+    }
+    
+    return treasuryZECAccount;
+  }
+
+  /**
+   * Get treasury's native ZEC balance
+   * @returns {Promise<number>} Balance in smallest unit (lamports)
+   */
+  async getTreasuryZECBalance() {
+    if (!this.relayerKeypair) {
+      throw new Error('Relayer keypair not configured');
+    }
+
+    try {
+      const zecMint = this.getNativeZECMint();
+      const treasuryZECAccount = await this.getTreasuryZECAccount(zecMint);
+      
+      const deps = getSolanaDeps();
+      const accountInfo = await deps.getAccount(
+        this.connection,
+        treasuryZECAccount,
+      );
+      
+      return BigInt(accountInfo.amount.toString());
+    } catch (error) {
+      if (error.message.includes('does not exist')) {
+        return BigInt(0);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Transfer native ZEC from treasury to user
+   * @param {string} userAddress - User's Solana address
+   * @param {number} amount - Amount in smallest unit (lamports)
+   * @returns {Promise<string>} Transaction signature
+   */
+  async transferNativeZEC(userAddress, amount) {
+    if (!this.relayerKeypair) {
+      throw new Error('Relayer keypair not configured');
+    }
+
+    const deps = getSolanaDeps();
+    const zecMint = this.getNativeZECMint();
+    const userPubkey = new deps.PublicKey(userAddress);
+    
+    // Get treasury ZEC account (source)
+    const treasuryZECAccount = await this.getTreasuryZECAccount(zecMint);
+    
+    // Check treasury balance
+    const treasuryBalance = await this.getTreasuryZECBalance();
+    if (treasuryBalance < BigInt(amount)) {
+      throw new Error(
+        `Insufficient ZEC reserves. Requested: ${amount}, Available: ${treasuryBalance.toString()}`
+      );
+    }
+    
+    // Get or create user's ZEC token account (destination)
+    const userZECAccount = await this.getOrCreateTokenAccount(userPubkey, zecMint.toString());
+    
+    // Create transfer instruction
+    const transferIx = deps.createTransferInstruction(
+      treasuryZECAccount,           // Source: Bridge treasury
+      userZECAccount,                // Destination: User
+      this.relayerKeypair.publicKey, // Authority (treasury owner)
+      amount,                        // Amount in smallest unit
+      [],
+      deps.TOKEN_PROGRAM_ID
+    );
+    
+    // Create and send transaction
+    const transaction = new deps.Transaction().add(transferIx);
+    
+    // Get blockhash with expiry info
+    let { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
+    
+    // Check if blockhash is still valid
+    const currentBlockHeight = await this.connection.getBlockHeight();
+    if (currentBlockHeight > lastValidBlockHeight) {
+      const blockhashInfo = await this.connection.getLatestBlockhash('confirmed');
+      blockhash = blockhashInfo.blockhash;
+      lastValidBlockHeight = blockhashInfo.lastValidBlockHeight;
+      console.log('Blockhash expired during transfer, using new blockhash');
+    }
+    
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = this.relayerKeypair.publicKey;
+    transaction.sign(this.relayerKeypair);
+    
+    const signature = await this.connection.sendRawTransaction(
+      transaction.serialize(),
+      { skipPreflight: false }
+    );
+    
+    // Wait for confirmation
+    await this.connection.confirmTransaction({
+      signature,
+      blockhash,
+      lastValidBlockHeight
+    }, 'confirmed');
+    
+    console.log(`✓ Transferred ${amount / 1e8} native ZEC to ${userAddress}`);
+    console.log(`  Transaction: ${signature}`);
+    
+    return signature;
   }
 
   /**

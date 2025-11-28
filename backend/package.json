@@ -13,7 +13,8 @@
     "migrate": "node database/migrate.js",
     "test-db": "node database/test-db.js",
     "check-db": "node database/check-setup.js",
-    "test-arcium": "node test-enhanced-arcium.js",
+    "test-arcium": "node test-arcium-integration.js",
+    "test-arcium-enhanced": "node test-enhanced-arcium.js",
     "setup-postgres": "powershell -ExecutionPolicy Bypass -File setup-postgres.ps1"
   },
   "keywords": [
@@ -24,6 +25,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@arcium-hq/client": "^0.1.0",
     "@coral-xyz/anchor": "^0.32.1",
     "@jup-ag/api": "^6.0.47",
     "@solana/spl-token": "^0.4.0",

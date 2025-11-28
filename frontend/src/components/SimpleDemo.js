@@ -15,12 +15,10 @@ function SimpleDemo() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [step, setStep] = useState('welcome'); // welcome -> wallet -> fund -> bridge -> success
 
   const handleWalletGenerated = (wallets) => {
     if (wallets.bitcoin) {
       setBtcWallet(wallets.bitcoin);
-      setStep('fund');
     }
   };
 
@@ -47,7 +45,6 @@ function SimpleDemo() {
       });
 
       setResult(response.data);
-      setStep('success');
     } catch (err) {
       console.error('Bridge error:', err);
       setError(err.response?.data?.error || 'Bridge failed. Please try again.');
@@ -57,7 +54,6 @@ function SimpleDemo() {
   };
 
   const resetDemo = () => {
-    setStep('welcome');
     setBtcWallet(null);
     setBtcTxHash('');
     setResult(null);
@@ -67,194 +63,102 @@ function SimpleDemo() {
   return (
     <div className="simple-demo">
       <div className="demo-header">
-        <h1>🚀 FLASH Bridge Demo</h1>
-        <p>Experience BTC → zenZEC bridging with real testnet transactions</p>
+        <h1>🚀 FLASH Bridge</h1>
+        <p>Bridge Bitcoin to zenZEC tokens on Solana</p>
       </div>
 
-      {/* Wallet Connection - Always visible */}
+      {/* Wallet Connection */}
       <div className="wallet-section">
-        <div className="wallet-status">
-          {!connected ? (
-            <div className="wallet-connect-prompt">
-              <h3>🔗 Connect Your Solana Wallet</h3>
-              <p>Connect to receive zenZEC tokens after bridging</p>
-              <WalletMultiButton className="wallet-button" />
-            </div>
-          ) : (
-            <div className="wallet-connected">
-              <span className="wallet-icon">✓</span>
-              <span className="wallet-address">
-                {publicKey.toString().substring(0, 8)}...{publicKey.toString().slice(-8)}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Step Indicator */}
-      <div className="step-indicator">
-        <div className={`step ${step === 'welcome' || step === 'wallet' ? 'active' : step === 'fund' || step === 'bridge' || step === 'success' ? 'completed' : ''}`}>
-          <span className="step-number">1</span>
-          <span className="step-label">Generate Wallet</span>
-        </div>
-        <div className="step-arrow">→</div>
-        <div className={`step ${step === 'fund' ? 'active' : step === 'bridge' || step === 'success' ? 'completed' : ''}`}>
-          <span className="step-number">2</span>
-          <span className="step-label">Get Testnet BTC</span>
-        </div>
-        <div className="step-arrow">→</div>
-        <div className={`step ${step === 'bridge' ? 'active' : step === 'success' ? 'completed' : ''}`}>
-          <span className="step-number">3</span>
-          <span className="step-label">Bridge to zenZEC</span>
-        </div>
-        <div className="step-arrow">→</div>
-        <div className={`step ${step === 'success' ? 'completed' : ''}`}>
-          <span className="step-number">4</span>
-          <span className="step-label">Success!</span>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="demo-content">
-
-        {step === 'welcome' && (
-          <div className="welcome-step">
-            <h2>🎯 Welcome to FLASH Bridge</h2>
-            <p>This demo shows how Bitcoin can be privately bridged to zenZEC tokens on Solana.</p>
-
-            <div className="demo-features">
-              <div className="feature">
-                <span className="feature-icon">₿</span>
-                <div>
-                  <h4>Real Bitcoin Transactions</h4>
-                  <p>Use actual testnet BTC - no fake demos</p>
-                </div>
-              </div>
-              <div className="feature">
-                <span className="feature-icon">🔒</span>
-                <div>
-                  <h4>Full Privacy</h4>
-                  <p>All transactions encrypted via Arcium MPC</p>
-                </div>
-              </div>
-              <div className="feature">
-                <span className="feature-icon">⚡</span>
-                <div>
-                  <h4>Instant Bridging</h4>
-                  <p>BTC → zenZEC in minutes</p>
-                </div>
-              </div>
-            </div>
-
-            <button
-              className="primary-button start-button"
-              onClick={() => setStep('wallet')}
-            >
-              🚀 Start Demo
-            </button>
+        {!connected ? (
+          <div className="wallet-connect-prompt">
+            <h3>🔗 Connect Your Solana Wallet</h3>
+            <p>Connect to receive zenZEC tokens after bridging</p>
+            <WalletMultiButton className="wallet-button" />
+          </div>
+        ) : (
+          <div className="wallet-connected">
+            <span className="wallet-icon">✓</span>
+            <span className="wallet-address">
+              {publicKey.toString().substring(0, 8)}...{publicKey.toString().slice(-8)}
+            </span>
           </div>
         )}
+      </div>
 
-        {(step === 'wallet' || step === 'fund') && (
-          <div className="wallet-step">
-            <h2>₿ Generate Bitcoin Testnet Wallet</h2>
-            <p>Create a fresh Bitcoin testnet address to demonstrate real BTC bridging</p>
+      {/* Main Bridge Interface */}
+      <div className="demo-content">
+        {!result ? (
+          <div className="bridge-interface">
+            <h2>🌉 Bridge BTC to zenZEC</h2>
 
-            {!btcWallet ? (
-              <button
-                className="primary-button generate-button"
-                onClick={() => setShowWalletGenerator(true)}
-              >
-                🎯 Generate Bitcoin Wallet
-              </button>
-            ) : (
-              <div className="wallet-info">
-                <h3>✅ Wallet Generated!</h3>
-                <div className="wallet-details">
-                  <div className="wallet-address">
-                    <label>Bitcoin Testnet Address:</label>
-                    <div className="address-display">
-                      <code>{btcWallet.address}</code>
-                      <button onClick={() => navigator.clipboard.writeText(btcWallet.address)}>
-                        📋 Copy
-                      </button>
-                    </div>
-                    <p className="address-note">
-                      Format: {btcWallet.address.startsWith('tb1') ? 'SegWit (tb1...)' : 'Legacy (m/n...)'}
-                    </p>
-                  </div>
+            {/* Generate BTC Wallet */}
+            <div className="section">
+              <h3>1. Get a Bitcoin Testnet Address</h3>
+              {!btcWallet ? (
+                <div>
+                  <p>Generate a testnet Bitcoin address to receive test BTC</p>
+                  <button
+                    className="primary-button"
+                    onClick={() => setShowWalletGenerator(true)}
+                  >
+                    🎯 Generate Bitcoin Wallet
+                  </button>
                 </div>
-
-                <div className="funding-instructions">
-                  <h4>💰 Get Free Testnet BTC</h4>
-                  <p>Send testnet BTC to the address above. We'll bridge it to zenZEC!</p>
-
-                  <div className="faucet-option">
-                    <h5>🚰 Get Free Testnet BTC:</h5>
+              ) : (
+                <div className="wallet-info">
+                  <div className="address-display">
+                    <code>{btcWallet.address}</code>
+                    <button onClick={() => navigator.clipboard.writeText(btcWallet.address)}>
+                      📋 Copy
+                    </button>
+                  </div>
+                  <p>
                     <a
                       href="https://mempool.space/testnet/faucet"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="faucet-link"
                     >
-                      mempool.space/testnet/faucet
+                      Get free testnet BTC here ↗
                     </a>
-                    <p>Send 0.001 BTC to: <strong>{btcWallet.address}</strong></p>
-                    <p>Wait for 6+ confirmations (~10 minutes)</p>
-                  </div>
-
-                  <div className="next-step">
-                    <p><strong>Next:</strong> After sending BTC, paste the transaction hash below</p>
-                    <button
-                      className="secondary-button"
-                      onClick={() => setStep('bridge')}
-                    >
-                      I Have BTC → Continue
-                    </button>
-                  </div>
+                  </p>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 'bridge' && (
-          <div className="bridge-step">
-            <h2>🌉 Bridge BTC to zenZEC</h2>
-            <p>Paste your Bitcoin transaction hash to bridge BTC → zenZEC</p>
-
-            <div className="bridge-form">
-              <div className="form-group">
-                <label htmlFor="btcTxHash">Bitcoin Transaction Hash:</label>
-                <input
-                  id="btcTxHash"
-                  type="text"
-                  value={btcTxHash}
-                  onChange={(e) => setBtcTxHash(e.target.value)}
-                  placeholder="Paste BTC transaction hash here..."
-                  required
-                />
-                <p className="helper-text">
-                  Find this on <a href="https://mempool.space/testnet" target="_blank" rel="noopener noreferrer">mempool.space/testnet</a>
-                </p>
-              </div>
-
-              <button
-                className="primary-button bridge-button"
-                onClick={handleBridge}
-                disabled={loading || !btcTxHash.trim() || !connected}
-              >
-                {loading ? '🔄 Bridging...' : '🚀 Bridge BTC to zenZEC'}
-              </button>
-
-              {!connected && (
-                <p className="connect-warning">⚠️ Connect your Solana wallet first</p>
               )}
             </div>
-          </div>
-        )}
 
-        {step === 'success' && result && (
+            {/* Bridge Form */}
+            <div className="section">
+              <h3>2. Bridge Your BTC</h3>
+              <p>Paste your Bitcoin transaction hash after sending BTC</p>
+
+              <div className="bridge-form">
+                <div className="form-group">
+                  <label htmlFor="btcTxHash">Bitcoin Transaction Hash:</label>
+                  <input
+                    id="btcTxHash"
+                    type="text"
+                    value={btcTxHash}
+                    onChange={(e) => setBtcTxHash(e.target.value)}
+                    placeholder="Paste BTC transaction hash..."
+                    required
+                  />
+                  <p className="helper-text">
+                    Find on <a href="https://mempool.space/testnet" target="_blank" rel="noopener noreferrer">mempool.space</a>
+                  </p>
+                </div>
+
+                <button
+                  className="primary-button bridge-button"
+                  onClick={handleBridge}
+                  disabled={loading || !btcTxHash.trim() || !connected}
+                >
+                  {loading ? '🔄 Bridging...' : '🚀 Bridge BTC to zenZEC'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Success Screen */
           <div className="success-step">
             <h2>🎉 Bridge Successful!</h2>
             <p>Your BTC has been bridged to zenZEC tokens!</p>
@@ -293,7 +197,7 @@ function SimpleDemo() {
 
             <div className="next-actions">
               <button className="secondary-button" onClick={resetDemo}>
-                🔄 Try Another Bridge
+                🔄 Bridge Again
               </button>
               <a
                 href={`https://mempool.space/testnet/tx/${btcTxHash}`}

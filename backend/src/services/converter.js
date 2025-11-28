@@ -16,43 +16,36 @@ class ConverterService {
   }
 
   /**
-   * Convert BTC to ZEC
+   * Calculate ZEC equivalent for BTC amount using exchange rate
+   * Simplified approach: Uses exchange rate only, no actual conversion execution
+   * This avoids exchange fees, API costs, and liquidity requirements
+   * 
    * @param {number} btcAmount - Amount in BTC
-   * @returns {Promise<Object>} Conversion result with ZEC amount
+   * @returns {Promise<Object>} Calculation result with ZEC amount
    */
   async convertBTCtoZEC(btcAmount) {
     try {
-      console.log(`Converting ${btcAmount} BTC to ZEC...`);
+      console.log(`Calculating ZEC equivalent for ${btcAmount} BTC...`);
 
-      // Get current exchange rate
+      // Get current exchange rate (free API, no execution needed)
       const exchangeRate = await this.getBTCtoZECRate();
       const zecAmount = btcAmount * exchangeRate;
 
       console.log(`Exchange rate: 1 BTC = ${exchangeRate} ZEC`);
-      console.log(`Converted: ${btcAmount} BTC → ${zecAmount} ZEC`);
+      console.log(`ZEC equivalent: ${btcAmount} BTC → ${zecAmount} ZEC`);
 
-      // In production, this would:
-      // 1. Execute exchange order via API
-      // 2. Wait for ZEC transaction confirmation
-      // 3. Return actual ZEC transaction hash
-      
-      // For MVP, return mock conversion result
-      // In production, replace with actual exchange execution
-      const conversionId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
+      // Return calculation result (no actual exchange execution)
       return {
         success: true,
-        conversionId,
         btcAmount,
         zecAmount,
         exchangeRate,
-        zecTxHash: null, // Will be set when actual conversion happens
         timestamp: Date.now(),
-        note: 'For MVP: Actual exchange execution not implemented. Use real exchange API in production.',
+        note: 'Rate-based calculation. Native ZEC will be transferred from treasury.',
       };
     } catch (error) {
-      console.error('Error converting BTC to ZEC:', error);
-      throw new Error(`Failed to convert BTC to ZEC: ${error.message}`);
+      console.error('Error calculating ZEC equivalent:', error);
+      throw new Error(`Failed to calculate ZEC equivalent: ${error.message}`);
     }
   }
 
@@ -177,28 +170,30 @@ class ConverterService {
   }
 
   /**
-   * Execute actual exchange order (for production)
+   * Execute actual exchange order (DEPRECATED - Not recommended)
+   * 
+   * NOTE: This method is kept for backward compatibility but is not recommended.
+   * The simplified approach uses exchange rates only, avoiding:
+   * - Exchange API fees
+   * - KYC requirements
+   * - Liquidity management
+   * - Complex execution logic
+   * 
+   * If you need actual exchange execution, consider:
+   * - Partnering with existing DEX aggregators (ThorSwap, etc.)
+   * - Using atomic swaps (complex, requires liquidity)
+   * - Integrating with exchange APIs (requires funding)
+   * 
    * @param {number} btcAmount - Amount in BTC
    * @returns {Promise<Object>} Exchange result with ZEC transaction hash
    */
   async executeExchange(btcAmount) {
-    if (!this.useExchange) {
-      throw new Error('Exchange execution disabled. Set USE_EXCHANGE=true to enable.');
-    }
-
-    // In production, this would:
-    // 1. Create exchange order via API (Kraken, Coinbase, etc.)
-    // 2. Wait for order execution
-    // 3. Get ZEC transaction hash
-    // 4. Return conversion result
-
-    console.log('Exchange execution not implemented in MVP');
-    console.log('In production, integrate with exchange API:');
-    console.log('- Kraken API: https://www.kraken.com/features/api');
-    console.log('- Coinbase Pro API: https://docs.pro.coinbase.com/');
-    console.log('- Or use atomic swap protocol');
-
-    throw new Error('Exchange execution not implemented');
+    console.warn('⚠️  Exchange execution is deprecated. Use rate-based calculation instead.');
+    throw new Error(
+      'Exchange execution not implemented. ' +
+      'Use rate-based calculation (convertBTCtoZEC) which calculates ZEC equivalent ' +
+      'and transfers native ZEC from treasury instead.'
+    );
   }
 
   /**

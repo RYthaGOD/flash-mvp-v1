@@ -17,8 +17,7 @@ We appreciate your help in keeping FLASH Bridge and its users secure. If you dis
 
 **Please DO NOT report security vulnerabilities through public GitHub issues.**
 
-Instead, please report security vulnerabilities by emailing:
-**security@flash-bridge.com**
+Instead, please report security vulnerabilities via Twitter: [@moneybag_fin](https://twitter.com/moneybag_fin)
 
 ### What to Include
 
@@ -102,8 +101,7 @@ The following activities are strictly prohibited:
 ## 📞 Contact Information
 
 For security-related inquiries:
-- **Email**: security@flash-bridge.com
-- **PGP Key**: Available upon request for encrypted communications
+- **🐦 Twitter**: [@moneybag_fin](https://twitter.com/moneybag_fin)
 - **Response Time**: Within 24 hours for security reports
 
 ## 🔄 Security Updates

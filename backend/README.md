@@ -19,7 +19,14 @@ PORT=3001
 SOLANA_RPC_URL=https://api.devnet.solana.com
 SOLANA_NETWORK=devnet
 PROGRAM_ID=Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS
-ZENZEC_MINT=YourZenZECMintAddressHere
+ZENZEC_MINT=YourZenZECMintAddressHere  # For custom zenZEC token (optional)
+
+# Native ZEC Configuration (Recommended)
+# Use native ZEC token on Solana instead of minting custom zenZEC
+USE_NATIVE_ZEC=true  # Set to false to use zenZEC minting instead
+NATIVE_ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS  # Official native ZEC mint address
+# Or use ZEC_MINT as alias:
+ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS  # Alternative to NATIVE_ZEC_MINT
 ```
 
 ### Bitcoin Configuration (Cash App Integration)
@@ -46,17 +53,31 @@ ZCASH_NETWORK=mainnet
 ZCASH_BRIDGE_ADDRESS=zs1...  # Bridge's Zcash shielded address
 ZCASH_LIGHTWALLETD_URL=https://zcash-mainnet.chainsafe.dev
 ZCASH_EXPLORER_URL=https://zcashblockexplorer.com
+
+# Native ZEC Treasury Setup
+# When using native ZEC (USE_NATIVE_ZEC=true), you must:
+# 1. Fund the treasury with native ZEC tokens
+# 2. The treasury address is your RELAYER_KEYPAIR public key
+# 3. Create a token account for native ZEC at the treasury address
+# 4. Transfer native ZEC to that token account
+#
+# Example: Fund treasury with 100 ZEC before accepting bridge requests
 ```
 
-### Exchange Configuration (BTC → ZEC Conversion)
+### Exchange Configuration (BTC → ZEC Rate Calculation)
 ```env
-# Exchange Provider (for BTC → ZEC conversion)
+# Exchange Provider (for BTC → ZEC rate calculation - FREE)
 EXCHANGE_PROVIDER=coingecko  # Options: coingecko, kraken, coinbase
 
-# Exchange API Credentials (if using exchange API)
-USE_EXCHANGE=false  # Set to true to enable actual exchange execution
-EXCHANGE_API_KEY=your_api_key
-EXCHANGE_API_SECRET=your_api_secret
+# Note: We use rate-based calculation (no actual exchange execution)
+# This avoids exchange fees, API costs, and liquidity requirements
+# BTC amount is converted to ZEC equivalent using current exchange rate
+# Native ZEC is then transferred from treasury to user
+#
+# Exchange API Credentials (NOT NEEDED - we only fetch rates)
+# USE_EXCHANGE=false  # Keep false - we don't execute exchanges
+# EXCHANGE_API_KEY=not_needed
+# EXCHANGE_API_SECRET=not_needed
 ```
 
 ### Relayer Configuration

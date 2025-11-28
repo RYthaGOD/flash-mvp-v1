@@ -134,8 +134,14 @@ class JupiterService {
     console.log(`🛡️  MEV Protection: Privacy delay ${Math.round(privacyDelay/1000)}s`);
     await new Promise(resolve => setTimeout(resolve, privacyDelay));
 
-    // ZEC mint on Solana (user provided)
-    const zecMint = new PublicKey(process.env.ZEC_MINT || 'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS');
+    // Use native ZEC mint (preferred) or fallback to official native ZEC mint
+    const nativeZECMint = process.env.NATIVE_ZEC_MINT || 
+                         process.env.ZEC_MINT || 
+                         'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS'; // Official native ZEC mint
+    
+    console.log(`Using native ZEC mint: ${nativeZECMint}`);
+    
+    const zecMint = new PublicKey(nativeZECMint);
     const outputMintPubkey = new PublicKey(outputMint);
     const userPubkey = new PublicKey(userAddress);
 
