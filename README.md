@@ -25,10 +25,10 @@ FLASH Bridge is a cross-chain bridge connecting Bitcoin, Zcash, and Solana block
 - Health monitoring and automatic recovery
 
 🔗 **Multi-Chain Bridge**
-- BTC → ZEC (Shielded) → SOL bridge operations
-- Reverse flows: SOL → zenZEC → BTC
+- BTC → ZEC (Shielded) → Native ZEC on Solana bridge operations
+- Reverse flows: SOL → Native ZEC → BTC
 - Zcash shielded addresses support
-- Solana SPL token minting and burning
+- Native ZEC token transfers (official Solana ZEC token)
 
 ---
 
@@ -37,15 +37,15 @@ FLASH Bridge is a cross-chain bridge connecting Bitcoin, Zcash, and Solana block
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Bitcoin       │ -> │   Zcash         │ -> │   Solana        │
-│   (BTC)         │    │   (Shielded)    │    │   (zenZEC)      │
+│   (BTC)         │    │   (Shielded)    │    │   (Native ZEC)  │
 │                 │    │   MPC Privacy   │    │                 │
-│  Payment TX     │    │   Encryption    │    │  SPL Token      │
+│  Payment TX     │    │   Encryption    │    │  Native Token   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
        ↓                        ↓                        ↓
-   User Choice:           DEX Trading              Auto-Swap
-   Hold zenZEC         or Auto-Swap                    ↓
-       ↓                 to SOL                   SOL Transfer
-   DEX Trading ──────────────────────────────────────────┘
+   Exchange Rate         Treasury Transfer         Auto-Swap
+   Calculation           (Native ZEC)                    ↓
+       ↓                        ↓                 SOL Transfer
+   ZEC Amount ──────────────────────────────────────────┘
 ```
 
 ### 🔐 **Custom MXE Operations**
@@ -75,7 +75,7 @@ cd flash-bridge
 
 # Setup backend with simulation mode
 cd backend
-cp .env.example.txt .env
+cp .env.example .env
 npm install
 npm start
 
@@ -94,21 +94,29 @@ npm start
 
 ## 🎮 **Bridge Flows**
 
-### **Privacy Bridge (BTC → ZEC → zenZEC)**
+### **Privacy Bridge (BTC → ZEC → Native ZEC on Solana)**
 ```
-User BTC Payment → Zcash Shielding → Arcium MPC Encryption → Solana zenZEC Mint
+User BTC Payment → Exchange Rate → Treasury Transfer → Native ZEC on Solana
+                     Calculation      (Native ZEC)         (Official Token)
                      ↑                    ↑                          ↑
-                Privacy Layer       Real MPC Operations      SPL Token
+                Rate-Based          Treasury Reserve      Native ZEC Token
 ```
 
-### **Auto-Swap (zenZEC → SOL)**
+### **ZEC Direct Bridge (ZEC → Native ZEC on Solana)**
 ```
-zenZEC Token → Encrypted Amount → MPC Swap Calculation → SOL Transfer
+Zcash Payment → Verification → Treasury Transfer → Native ZEC on Solana
+                     ↑                ↑                      ↑
+                Shielded TX      Native ZEC          Official Token
 ```
 
-### **Reverse Bridge (SOL → zenZEC → BTC)**
+### **Auto-Swap (Native ZEC → SOL)**
 ```
-SOL Payment → zenZEC Burn → Encrypted BTC Address → BTC Withdrawal
+Native ZEC Token → Encrypted Amount → MPC Swap Calculation → SOL Transfer
+```
+
+### **Reverse Bridge (SOL → Native ZEC → BTC)**
+```
+SOL Payment → Native ZEC Transfer → Encrypted BTC Address → BTC Withdrawal
 ```
 
 ---
@@ -122,8 +130,9 @@ SOL Payment → zenZEC Burn → Encrypted BTC Address → BTC Withdrawal
 
 ### **Backend API (`backend/`)**
 **19 API endpoints** including:
-- **Bridge Operations**: Mint zenZEC, transaction status, bridge info
+- **Bridge Operations**: Transfer native ZEC, transaction status, bridge info
 - **Zcash Integration**: Transaction verification, price fetching
+- **Bitcoin Integration**: BTC payment verification (exchange rate-based)
 - **Arcium MPC Privacy**: Encrypted operations, private verification
 - **Relayer Service**: Event monitoring, automatic SOL swaps
 
@@ -139,9 +148,11 @@ SOL Payment → zenZEC Burn → Encrypted BTC Address → BTC Withdrawal
 
 ### Bridge Operations
 ```http
-POST /api/bridge              # Mint zenZEC tokens
+POST /api/bridge              # Transfer native ZEC tokens
 GET  /api/bridge/info         # Bridge configuration
 GET  /api/bridge/transaction/:txId  # Transaction status
+POST /api/bridge/jupiter-swap # Swap native ZEC for other tokens
+POST /api/bridge/btc-deposit  # Claim BTC deposit (exchange rate-based)
 ```
 
 ### Zcash Integration
@@ -160,38 +171,6 @@ POST /api/arcium/random       # Trustless random generation
 
 ---
 
-## 🛠️ **Quick Start**
-
-### Prerequisites
-- **Node.js 18+**
-- **Git**
-- **For Real MPC**: Arcium API key (contact team with our MXE)
-
-### Installation
-
-```bash
-# Clone repository
-git clone <repository-url>
-cd flash-bridge
-
-# Setup backend with simulation mode
-cd backend
-cp .env.example.txt .env
-npm install
-npm start
-
-# Setup frontend (new terminal)
-cd ../frontend
-npm install
-npm start
-```
-
-### Access Points
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:3001
-- **MXE Documentation:** `flash-bridge-mxe/README.md`
-
----
 
 ## ⚙️ **Environment Configuration**
 
@@ -201,7 +180,21 @@ PORT=3001
 SOLANA_RPC_URL=https://api.devnet.solana.com
 SOLANA_NETWORK=devnet
 PROGRAM_ID=YourProgramIdHere
-ZENZEC_MINT=YourZenZECMintHere
+
+# Native ZEC Configuration (Recommended)
+USE_NATIVE_ZEC=true
+NATIVE_ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS  # Official native ZEC on Solana
+
+# Bitcoin Configuration (Exchange Rate-Based)
+BITCOIN_NETWORK=testnet
+BITCOIN_BRIDGE_ADDRESS=your_btc_address
+BITCOIN_EXPLORER_URL=https://blockstream.info/api
+
+# Zcash Configuration
+ZCASH_NETWORK=testnet
+ZCASH_BRIDGE_ADDRESS=your_zcash_address
+
+# Relayer Configuration
 ENABLE_RELAYER=false
 RELAYER_KEYPAIR_PATH=~/.config/solana/id.json
 
@@ -231,11 +224,12 @@ REACT_APP_API_URL=http://localhost:3001
 ```
 
 ### Demo Workflows
-1. **Basic Bridge** (2 min) - Simple zenZEC minting
-2. **Zcash Verification** (3 min) - Real ZEC transaction verification
-3. **Full Privacy** (4 min) - Arcium MPC encrypted transactions
-4. **Burn & Swap** (3 min) - Complete bridge lifecycle
-5. **API Integration** (2 min) - Developer experience
+1. **Basic Bridge** (2 min) - Native ZEC transfer from treasury
+2. **Bitcoin Bridge** (3 min) - BTC → Native ZEC (exchange rate-based)
+3. **Zcash Verification** (3 min) - Real ZEC transaction verification
+4. **Full Privacy** (4 min) - Arcium MPC encrypted transactions
+5. **Swap & Burn** (3 min) - Complete bridge lifecycle
+6. **API Integration** (2 min) - Developer experience
 
 ### Manual Testing
 See [`HACKATHON_DEMO.md`](./HACKATHON_DEMO.md) for complete 10-minute demo script.
@@ -245,7 +239,9 @@ See [`HACKATHON_DEMO.md`](./HACKATHON_DEMO.md) for complete 10-minute demo scrip
 ## 📊 **Current Status**
 
 ### ✅ **MVP Complete - Demo Ready**
-- **Core Features:** Bridge transactions with cryptographic proofs
+- **Core Features:** Bridge transactions with native ZEC support
+- **Bitcoin Integration:** Exchange rate-based BTC → ZEC conversion
+- **Native ZEC:** Official Solana ZEC token integration
 - **Privacy:** Arcium MPC encryption implemented
 - **Crash Prevention:** Enterprise-grade stability features
 - **Documentation:** Comprehensive setup and architecture guides
@@ -261,6 +257,8 @@ See [`HACKATHON_DEMO.md`](./HACKATHON_DEMO.md) for complete 10-minute demo scrip
 ## 🔑 **MPC Integration Status**
 
 ### **Current: Enhanced Simulation**
+- ✅ **Native ZEC Support:** Official Solana ZEC token integration
+- ✅ **Bitcoin Flow:** Exchange rate-based BTC conversion (simplified)
 - ✅ **Privacy Features:** All MPC operations simulated
 - ✅ **Bridge Functionality:** Full cross-chain transfers
 - ✅ **Institutional Proofs:** Cryptographic verification ready
@@ -310,6 +308,8 @@ flash-bridge/
 ├── backend/                # Node.js API server (19 endpoints)
 │   ├── src/                # Source code
 │   ├── database/           # Schema and migrations
+│   ├── NATIVE_ZEC_SETUP.md # Native ZEC setup guide
+│   ├── TESTING.md          # Testing documentation
 │   └── package.json        # Dependencies
 ├── frontend/               # React user interface
 │   ├── src/                # React components
