@@ -1,201 +1,131 @@
 .tabbed-interface {
   width: 100%;
-  max-width: 1200px;
+  min-height: 100vh;
+  background-color: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.app-header {
+  background-color: #0a0a0a;
+  border-bottom: 1px solid #2a2a2a;
+  padding: 0 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-container {
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 20px;
-}
-
-.interface-header {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
-  border: 2px solid #FFD700;
-  border-radius: 20px;
-  padding: 30px;
-  margin-bottom: 20px;
-  box-shadow: 0 8px 30px rgba(220, 20, 60, 0.3), 0 0 40px rgba(255, 215, 0, 0.2);
-  backdrop-filter: blur(10px);
-}
-
-.header-content {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
 }
 
-.app-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  text-align: center;
-  background: linear-gradient(135deg, #DC143C 0%, #FFD700 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin: 0;
-  text-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
-}
-
-.app-subtitle {
-  text-align: center;
-  color: #666;
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.bridge-status-bar {
+.logo {
   display: flex;
-  justify-content: center;
-  gap: 30px;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 10px;
-}
-
-.status-item {
-  display: flex;
-  gap: 8px;
   align-items: center;
 }
 
-.status-label {
-  font-weight: 600;
-  color: #666;
-}
-
-.status-value {
-  font-weight: 600;
-  color: #333;
-}
-
-.status-active {
-  color: #FFD700;
-  font-weight: 700;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-}
-
-.wallet-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-}
-
-.balance-display {
-  display: flex;
-  gap: 20px;
-  padding: 10px 20px;
-  background: #f8f9fa;
-  border-radius: 8px;
-}
-
-.balance-item {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.balance-label {
-  font-weight: 600;
-  color: #666;
-}
-
-.balance-value {
-  font-weight: 700;
-  color: #333;
-  font-family: monospace;
-}
-
-.tabs-container {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-  background: white;
-  padding: 10px;
-  border-radius: 15px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-}
-
-.tab-button {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 15px;
-  border: 2px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-size: 0.9rem;
-}
-
-.tab-button:hover {
-  background: rgba(220, 20, 60, 0.1);
-  border-color: #FFD700;
-  color: #DC143C;
-}
-
-.tab-button.active {
-  background: linear-gradient(135deg, #DC143C 0%, #C41E3A 100%);
-  color: #FFD700;
-  border-color: #FFD700;
-  box-shadow: 0 4px 15px rgba(220, 20, 60, 0.4);
-  font-weight: 700;
-}
-
-.tab-icon {
+.logo-text {
   font-size: 1.5rem;
-}
-
-.tab-name {
   font-weight: 600;
+  color: #ffffff;
+  font-family: 'PolySans', sans-serif;
 }
 
-.tab-content {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
-  border: 2px solid #FFD700;
-  border-radius: 20px;
-  padding: 30px;
-  box-shadow: 0 8px 30px rgba(220, 20, 60, 0.3), 0 0 40px rgba(255, 215, 0, 0.2);
-  min-height: 400px;
-  backdrop-filter: blur(10px);
+.header-nav {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
 }
 
-.warning-box {
-  margin-top: 20px;
-  padding: 15px;
-  background: #fff3cd;
-  border: 2px solid #ffc107;
-  border-radius: 10px;
-  color: #856404;
+.nav-link {
+  background: none;
+  border: none;
+  color: #888;
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: color 0.2s;
+  position: relative;
+  cursor: pointer;
+  font-family: 'PolySans', sans-serif;
+  padding: 0;
+}
+
+.nav-link:hover {
+  color: #a4e977;
+}
+
+.nav-link.active {
+  color: #a4e977;
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #a4e977;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.balance-info {
+  padding: 0.5rem 1rem;
+  background-color: #171717;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+}
+
+.balance-text {
+  color: #ffffff;
   font-size: 0.9rem;
-  text-align: center;
+  font-weight: 500;
 }
 
+.wallet-button-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+/* Wallet button wrapper */
+.wallet-button-wrapper {
+  position: relative;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  width: 100%;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-  .tabbed-interface {
-    padding: 10px;
+  .app-header {
+    padding: 0 1rem;
   }
-
-  .app-title {
-    font-size: 2rem;
+  
+  .header-container {
+    height: 64px;
   }
-
-  .tabs-container {
-    flex-wrap: wrap;
+  
+  .header-nav {
+    gap: 1rem;
+    display: none; /* Hide nav on mobile, or use hamburger menu */
   }
-
-  .tab-button {
-    min-width: calc(50% - 5px);
-  }
-
-  .bridge-status-bar {
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .balance-display {
-    flex-direction: column;
-    gap: 10px;
+  
+  .balance-info {
+    display: none; /* Hide balance on mobile */
   }
 }
-
