@@ -1,3 +1,80 @@
+@import './styles/fonts.css';
+
+:root {
+  /* Enhanced Color Palette */
+  --color-primary: #e7b240;          /* Indigo */
+  --color-primary-dark: #ebdc0e;     /* Darker indigo */
+  --color-secondary: #f59e0b;        /* Amber */
+  --color-secondary-dark: #d97706;   /* Darker amber */
+  --color-accent: #06b6d4;           /* Cyan */
+  --color-accent-dark: #000708;      /* Darker cyan */
+
+  /* Background */
+  --color-bg: #050505;
+  --color-bg-gradient:
+    radial-gradient(circle at 15% 20%, rgba(255, 77, 103, 0.35), transparent 45%),
+    radial-gradient(circle at 80% 0%, rgba(245, 194, 86, 0.22), transparent 35%),
+    linear-gradient(135deg, #030303 0%, #050505 45%, #080808 100%);
+
+  /* Neutral Colors */
+  --color-text-primary: #f7f2ea;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: rgba(247, 242, 234, 0.65);
+  --color-surface: rgba(14, 14, 17, 0.78);
+  --color-surface-alt: rgba(20, 20, 24, 0.82);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-light: rgba(0, 0, 0, 0.04);
+
+  /* Status Colors */
+  --color-success: #10b981;
+  --color-success-bg: rgba(16, 185, 129, 0.1);
+  --color-warning: #f59e0b;
+  --color-warning-bg: rgba(245, 158, 11, 0.1);
+  --color-error: #ef4444;
+  --color-error-bg: rgba(239, 68, 68, 0.1);
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --gradient-secondary: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  --gradient-accent: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  --gradient-surface: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+
+  /* Shadows */
+  --shadow-soft: 0 2px 15px rgba(0, 0, 0, 0.08);
+  --shadow-medium: 0 4px 25px rgba(0, 0, 0, 0.12);
+  --shadow-strong: 0 8px 35px rgba(0, 0, 0, 0.16);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
+
+  /* Typography */
+  --font-family: 'PolySans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 0.15s ease-out;
+  --transition-normal: 0.3s ease-out;
+  --transition-slow: 0.5s ease-out;
+
+  /* Legacy colors for backward compatibility */
+  --color-danger: #ef4444;
+  --color-positive: #10b981;
+  --blur-heavy: blur(28px);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -6,14 +83,14 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'PolySans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #DC143C 0%, #C41E3A 50%, #FFD700 100%);
+  background: var(--color-bg-gradient);
   min-height: 100vh;
-  background-attachment: fixed;
+  color: var(--color-text-primary);
 }
 
 code {

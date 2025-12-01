@@ -66,7 +66,7 @@ function BridgeInterface() {
       // Update workflow step based on response
       if (response.data.solanaTxSignature) {
         setWorkflowStep('minting');
-        setStatusMessage('Minting zenZEC tokens on Solana...');
+        setStatusMessage('Transferring native ZEC tokens on Solana...');
         
         // Wait a bit then check status
         setTimeout(() => {
@@ -112,12 +112,12 @@ function BridgeInterface() {
       },
       { 
         id: 4, 
-        name: 'Mint zenZEC', 
+        name: 'Transfer native ZEC', 
         status: isMinting ? 'active' : isCompleted ? 'completed' : 'pending' 
       },
       { 
         id: 5, 
-        name: swapToSol ? 'Swap to SOL' : 'Hold zenZEC', 
+        name: swapToSol ? 'Swap to SOL' : 'Hold native ZEC', 
         status: isCompleted && swapToSol ? 'pending' : isCompleted ? 'completed' : 'pending' 
       },
     ];
@@ -282,7 +282,7 @@ function BridgeInterface() {
             <ul className="feature-list">
               <li>✓ Mock BTC payment via Cash App/Lightning</li>
               <li>✓ Shield BTC into ZEC (conceptual)</li>
-              <li>✓ Mint zenZEC tokens on Solana</li>
+              <li>✓ Transfer native ZEC tokens on Solana</li>
               <li>✓ Optional: Burn zenZEC to receive SOL</li>
             </ul>
           </div>

@@ -39,8 +39,12 @@ class CryptoProofsService {
     // For demo purposes, use a deterministic HMAC key derived from environment or seed
     // In production, this would be loaded from secure key management system
     const keySeed = process.env.INSTITUTIONAL_KEY_SEED || 'flash-bridge-institutional-seed-2024';
+
+    // Generate a secure salt from the key seed (deterministic but not predictable)
+    const salt = crypto.scryptSync(keySeed, 'flash-bridge-salt-2024', 32);
+
     const hmacKey = process.env.INSTITUTIONAL_HMAC_KEY ||
-      crypto.scryptSync(keySeed, 'salt', 32);
+      crypto.scryptSync(keySeed, salt, 32);
 
     // Generate a deterministic Solana keypair for demo purposes (public key only for identification)
     const keypair = Keypair.fromSeed(Buffer.from(keySeed.substring(0, 32).padEnd(32, '0')));

@@ -1,111 +1,384 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import TestnetWalletGenerator from '../TestnetWalletGenerator';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useBitcoinWallet } from '../../contexts/BitcoinWalletContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import apiClient from '../../services/apiClient';
+import usePrefersReducedMotion from '../../hooks/usePrefersReducedMotion';
 import './TabStyles.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const shortenAddress = (key) => {
+  if (!key) return 'Wallet disconnected';
+  const base58 = key.toBase58();
+  return `${base58.slice(0, 4)}…${base58.slice(-4)}`;
+};
 
-function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
-  const [amount, setAmount] = useState('');
-  const [swapToSol, setSwapToSol] = useState(false);
+const shortenBtcAddress = (address) => {
+  if (!address) return 'Wallet disconnected';
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+};
+
+const FINAL_TRANSACTION_STATUSES = new Set(['confirmed', 'failed']);
+
+const formatStatusLabel = (status) => {
+  if (!status) return 'Unknown';
+  const normalized = String(status).toLowerCase();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+
+const formatStatusTimestamp = (timestamp) => {
+  if (!timestamp) return '—';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+function BridgeTab({ onBridgeComplete, onLightningTrigger }) {
+  const { publicKey, connected } = useWallet();
+  const { connected: btcConnected, address: btcAddress, sendBitcoin, loading: btcLoading } = useBitcoinWallet();
+  const [bridgeInfo, setBridgeInfo] = useState(null);
+  const [reserves, setReserves] = useState(null);
   const [bitcoinTxHash, setBitcoinTxHash] = useState('');
-  const [zcashTxHash, setZcashTxHash] = useState('');
-  // PRIVACY ALWAYS ON: Removed toggles, always use full privacy
+  const [sendAmount, setSendAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  
-  // SOL → zenZEC swap state
-  const [solAmount, setSolAmount] = useState('');
-  // PRIVACY ALWAYS ON: Privacy is mandatory, no toggle needed
-  const [swapResult, setSwapResult] = useState(null);
+  const [copyFeedback, setCopyFeedback] = useState(null);
+  const copyTimeoutRef = useRef(null);
+  const statusPollerRef = useRef(null);
+  const [transactionStatus, setTransactionStatus] = useState(null);
+  const [statusHistory, setStatusHistory] = useState([]);
+  const [statusError, setStatusError] = useState(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
-  // BTC Deposit state
-  const [btcDepositTxHash, setBtcDepositTxHash] = useState('');
-  const [btcDepositTokenMint, setBtcDepositTokenMint] = useState('');
-  const [btcDepositLoading, setBtcDepositLoading] = useState(false);
-  const [btcDepositResult, setBtcDepositResult] = useState(null);
-  const [btcDepositError, setBtcDepositError] = useState(null);
-
-  // Wallet generator state
-  const [showWalletGenerator, setShowWalletGenerator] = useState(false);
-  const [generatedWallets, setGeneratedWallets] = useState(null);
-
-  const handleWalletsGenerated = (wallets) => {
-    setGeneratedWallets(wallets);
-    // Auto-fill the Bitcoin address if generated
-    if (wallets.bitcoin) {
-      setBitcoinTxHash(''); // Clear any existing hash
-      // Note: In a real demo, you'd want to fund the address first
+  const fetchBridgeData = useCallback(async () => {
+    try {
+      const [info, reservesData] = await Promise.all([
+        apiClient.getBridgeInfo(),
+        apiClient.getReserves(),
+      ]);
+      setBridgeInfo(info);
+      setReserves(reservesData.reserves);
+    } catch (err) {
+      console.error('Failed to fetch bridge data:', err);
     }
-  };
+  }, []);
 
-  const [swapLoading, setSwapLoading] = useState(false);
-  const [swapError, setSwapError] = useState(null);
+  useEffect(() => {
+    fetchBridgeData();
+  }, [fetchBridgeData]);
 
-  // Handle BTC Deposit Claim
-  const handleBTCDepositClaim = async (e) => {
-    e.preventDefault();
+  const stopStatusPolling = useCallback(() => {
+    if (statusPollerRef.current) {
+      clearInterval(statusPollerRef.current);
+      statusPollerRef.current = null;
+    }
+  }, []);
 
-    if (!connected || !publicKey) {
-      setBtcDepositError('Please connect your wallet first');
+  const pollTransactionStatus = useCallback(async (txId) => {
+    if (!txId) {
       return;
     }
-
-    if (!btcDepositTxHash) {
-      setBtcDepositError('Please enter a Bitcoin transaction hash');
-      return;
-    }
-
-    setBtcDepositLoading(true);
-    setBtcDepositError(null);
-    setBtcDepositResult(null);
 
     try {
+      const data = await apiClient.getBridgeTransaction(txId);
+      if (data.transaction?.status) {
+        setTransactionStatus(data.transaction.status);
+      }
+      setStatusHistory(Array.isArray(data.history) ? data.history : []);
+      setStatusError(null);
+
+      if (data.transaction?.status && FINAL_TRANSACTION_STATUSES.has(data.transaction.status)) {
+        stopStatusPolling();
+      }
+    } catch (err) {
+      const message = err?.response?.data?.error || err.message || 'Unable to fetch status';
+      setStatusError(message);
+
+      if (err?.response?.status === 404 || err?.response?.status === 503) {
+        stopStatusPolling();
+      }
+    }
+  }, [stopStatusPolling]);
+
+  const startStatusPolling = useCallback((txId) => {
+    if (!txId) {
+      return;
+    }
+
+    stopStatusPolling();
+    const runPoll = () => pollTransactionStatus(txId);
+    runPoll();
+    statusPollerRef.current = setInterval(runPoll, 5000);
+  }, [pollTransactionStatus, stopStatusPolling]);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+      stopStatusPolling();
+    };
+  }, [stopStatusPolling]);
+
+  const btcReserve = reserves?.btc?.reserveBTC ?? null;
+  const zecReserve = reserves?.zec?.balanceZEC ?? null;
+
+  const metrics = useMemo(() => ([
+    {
+      label: 'SOL Wallet',
+      value: connected && publicKey ? shortenAddress(publicKey) : 'Connect wallet',
+      caption: connected ? 'Ready to receive ZEC' : 'Required for payouts',
+    },
+    {
+      label: 'BTC Wallet',
+      value: btcConnected && btcAddress ? shortenBtcAddress(btcAddress) : 'Connect wallet',
+      caption: btcConnected ? 'Ready to send BTC' : 'Required for deposits',
+    },
+    {
+      label: 'Bridge Network',
+      value: bridgeInfo?.network?.toUpperCase() || 'DEVNET',
+      caption: 'BTC testnet → Solana',
+    },
+    {
+      label: 'Privacy Mode',
+      value: bridgeInfo?.privacy?.mode || 'Arcium MPC',
+      caption: bridgeInfo?.privacy?.status || 'Encrypted flows enabled',
+    },
+  ]), [connected, publicKey, bridgeInfo, btcConnected, btcAddress]);
+
+  const timeline = useMemo(() => {
+    const hashReady = Boolean(bitcoinTxHash.trim());
+    const amountReady = Boolean(sendAmount.trim()) && btcConnected;
+    const submissionStarted = Boolean(result?.transactionId);
+    const serverStatus = transactionStatus || result?.status || null;
+    const latestHistoryEntry = statusHistory.length ? statusHistory[statusHistory.length - 1] : null;
+
+    const submissionState = (() => {
+      if (!connected || !btcConnected) return 'blocked';
+      if (serverStatus === 'failed') return 'failed';
+      if (serverStatus === 'confirmed') return 'done';
+      if (serverStatus === 'processing' || serverStatus === 'pending') return 'active';
+      if (loading || submissionStarted) return 'active';
+      if (hashReady || amountReady) return 'waiting';
+      return 'blocked';
+    })();
+
+    const mintState = (() => {
+      if (serverStatus === 'failed') return 'failed';
+      if (serverStatus === 'confirmed') return 'done';
+      if (serverStatus === 'processing') return 'active';
+      if (submissionStarted || loading) return 'waiting';
+      return 'waiting';
+    })();
+
+    const submissionHelper = (() => {
+      if (serverStatus === 'failed') return 'Review transaction details';
+      if (serverStatus === 'confirmed') return 'Bridge confirmed on-chain';
+      if (serverStatus === 'processing') return 'Treasury releasing funds';
+      if (serverStatus === 'pending') return 'Awaiting relayer verification';
+      if (latestHistoryEntry?.notes) return latestHistoryEntry.notes;
+      if (loading) return 'Relayer verifying';
+      if (submissionStarted) return 'Submitted to relayer';
+      if (hashReady || amountReady) return 'Ready to submit';
+      if (!btcConnected) return 'Connect BTC wallet';
+      if (!connected) return 'Connect SOL wallet';
+      return 'Provide the funded txid or enter amount';
+    })();
+
+    const mintHelper = (() => {
+      if (serverStatus === 'failed') return 'Mint halted. Contact support.';
+      if (serverStatus === 'confirmed') return 'native ZEC transferred';
+      if (serverStatus === 'processing') return 'Awaiting final confirmation';
+      if (submissionStarted || loading) return 'Auto after verification';
+      return 'Auto after validation';
+    })();
+
+    return [
+      {
+        label: 'Connect SOL wallet',
+        status: connected ? 'done' : 'active',
+        helper: connected && publicKey ? shortenAddress(publicKey) : 'Connect to unlock payouts',
+      },
+      {
+        label: 'Connect BTC wallet',
+        status: btcConnected ? 'done' : 'active',
+        helper: btcConnected && btcAddress ? shortenBtcAddress(btcAddress) : 'Connect to send BTC',
+      },
+      {
+        label: btcConnected ? 'Send BTC or paste hash' : 'Paste BTC hash',
+        status: (hashReady || amountReady) ? 'done' : (connected && btcConnected) ? 'waiting' : 'blocked',
+        helper: hashReady ? 'TX hash detected' : amountReady ? 'Amount specified' : 'Provide the funded txid or enter amount',
+      },
+      {
+        label: 'Submit bridge',
+        status: submissionState,
+        helper: submissionHelper,
+      },
+      {
+        label: 'Mint native ZEC',
+        status: mintState,
+        helper: mintHelper,
+      },
+    ];
+  }, [connected, publicKey, bitcoinTxHash, sendAmount, btcConnected, loading, result, statusHistory, transactionStatus]);
+
+  const handleCopyBridgeAddress = () => {
+    if (!bridgeInfo?.bitcoin?.bridgeAddress) return;
+    const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : null;
+
+    const showFeedback = (message) => {
+      setCopyFeedback(message);
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+      copyTimeoutRef.current = setTimeout(() => setCopyFeedback(null), 2200);
+    };
+
+    if (!clipboard?.writeText) {
+      showFeedback('Copy not supported');
+      return;
+    }
+
+    clipboard.writeText(bridgeInfo.bitcoin.bridgeAddress)
+      .then(() => showFeedback('Bridge address copied'))
+      .catch(() => showFeedback('Unable to copy'));
+  };
+
+  const handleDirectBridge = async (event) => {
+    event.preventDefault();
+
+    if (!connected || !publicKey) {
+      setError('Please connect your Solana wallet first.');
+      return;
+    }
+
+    if (!btcConnected || !btcAddress) {
+      setError('Please connect your Bitcoin wallet first.');
+      return;
+    }
+
+    if (!bridgeInfo?.bitcoin?.bridgeAddress) {
+      setError('Bridge address not available.');
+      return;
+    }
+
+    if (!sendAmount || parseFloat(sendAmount) <= 0) {
+      setError('Please enter a valid BTC amount.');
+      return;
+    }
+
+    const amount = parseFloat(sendAmount);
+    console.log('Parsed amount:', amount, 'from sendAmount:', sendAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setError('Please enter a valid positive BTC amount.');
+      return;
+    }
+    if (amount < 0.00001) {
+      setError('Minimum amount is 0.00001 BTC.');
+      return;
+    }
+
+    stopStatusPolling();
+    setTransactionStatus(null);
+    setStatusHistory([]);
+    setStatusError(null);
+    setLoading(true);
+    setError(null);
+    setResult(null);
+
+    let txHash = null;
+    try {
+      console.log('Starting one-click bridge with amount:', amount);
+      console.log('Bridge address:', bridgeInfo.bitcoin.bridgeAddress);
+      console.log('Wallet connected:', btcConnected);
+
+      // Validate wallet is ready
+      if (!btcConnected) {
+        throw new Error('Please connect your Bitcoin wallet first');
+      }
+      if (!btcAddress) {
+        throw new Error('Wallet address not available');
+      }
+
+      // Send BTC directly from wallet
+      console.log('Calling sendBitcoin...');
+      txHash = await sendBitcoin(bridgeInfo.bitcoin.bridgeAddress, amount);
+      console.log('BTC transaction hash:', txHash);
+
+      if (!txHash) {
+        throw new Error('Wallet returned empty transaction hash');
+      }
+
+      setBitcoinTxHash(txHash);
+
+      // Submit bridge transaction with the hash
       const payload = {
         solanaAddress: publicKey.toString(),
-        bitcoinTxHash: btcDepositTxHash,
-        outputTokenMint: btcDepositTokenMint || undefined, // Optional
+        bitcoinTxHash: txHash,
+        amount: amount,
+        useZecPrivacy: true,
       };
+      console.log('Bridge payload:', payload);
 
-      console.log('Claiming BTC deposit:', payload);
-      const response = await axios.post(`${API_URL}/api/bridge/btc-deposit`, payload);
+      const response = await apiClient.bridgeTransaction(payload);
+      console.log('Bridge response:', response);
+      setResult(response);
+      setTransactionStatus(response.status || null);
 
-      console.log('BTC deposit claim response:', response.data);
-      setBtcDepositResult(response.data);
+      if (response.transactionId) {
+        setStatusHistory([{
+          transaction_id: response.transactionId,
+          transaction_type: 'bridge',
+          status: response.status || 'pending',
+          notes: response.message || null,
+          created_at: new Date().toISOString(),
+        }]);
+        startStatusPolling(response.transactionId);
+      }
 
-      // Clear form on success
-      setBtcDepositTxHash('');
-      setBtcDepositTokenMint('');
-
+      setSendAmount('');
+      fetchBridgeData();
+      onBridgeComplete?.();
     } catch (err) {
-      console.error('BTC deposit claim error:', err);
-      const errorMessage = err.response?.data?.error ||
-                          err.response?.data?.message ||
-                          err.message ||
-                          'Failed to claim BTC deposit';
-      setBtcDepositError(errorMessage);
+      console.error('Bridge transaction error:', err);
+      console.error('Error response:', err.response?.data);
+      const message = err.response?.data?.error || err.response?.data?.message || err.message || 'Bridge transaction failed';
+      setError(message);
+
+      // If the transaction failed, still show what we have
+      if (txHash) {
+        setResult({
+          transactionId: 'failed-' + Date.now(),
+          amount: amount,
+          status: 'failed',
+          message: 'Transaction failed: ' + message,
+          bitcoinTxHash: txHash
+        });
+      }
     } finally {
-      setBtcDepositLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleBridge = async (e) => {
-    e.preventDefault();
-    console.log('Bridge button clicked', { connected, publicKey, amount });
-    
+  const handleBridge = async (event) => {
+    event.preventDefault();
+
     if (!connected || !publicKey) {
-      console.warn('Wallet not connected');
-      setError('Please connect your wallet first');
+      setError('Please connect your wallet first.');
       return;
     }
 
-    if (!amount || parseFloat(amount) <= 0) {
-      console.warn('Invalid amount');
-      setError('Please enter a valid amount');
+    if (!bitcoinTxHash.trim()) {
+      setError('Please provide a Bitcoin transaction hash.');
       return;
     }
 
+    stopStatusPolling();
+    setTransactionStatus(null);
+    setStatusHistory([]);
+    setStatusError(null);
     setLoading(true);
     setError(null);
     setResult(null);
@@ -113,38 +386,33 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
     try {
       const payload = {
         solanaAddress: publicKey.toString(),
-        amount: parseFloat(amount),
-        swapToSol: swapToSol,
-        useZecPrivacy: true,  // ALWAYS use ZEC privacy
+        bitcoinTxHash: bitcoinTxHash.trim(),
+        useZecPrivacy: true,
       };
 
-      // Add optional transaction hashes
-      if (bitcoinTxHash) payload.bitcoinTxHash = bitcoinTxHash;
-      if (zcashTxHash) payload.zcashTxHash = zcashTxHash;
-
-      console.log('Sending bridge request:', payload);
-      const response = await axios.post(`${API_URL}/api/bridge`, payload);
-      console.log('Bridge response:', response.data);
-      setResult(response.data);
-      
-      if (response.data.solanaTxSignature) {
-        setTimeout(() => {
-          if (onBridgeComplete) onBridgeComplete();
-        }, 2000);
+      const response = await apiClient.bridgeTransaction(payload);
+      setResult(response);
+      setTransactionStatus(response.status || null);
+      if (response.transactionId) {
+        setStatusHistory([{
+          transaction_id: response.transactionId,
+          transaction_type: 'bridge',
+          status: response.status || 'pending',
+          notes: response.message || null,
+          created_at: new Date().toISOString(),
+        }]);
+        startStatusPolling(response.transactionId);
       }
-      
-      setAmount('');
       setBitcoinTxHash('');
-      setZcashTxHash('');
+      fetchBridgeData();
+      onBridgeComplete?.();
     } catch (err) {
-      console.error('Bridge error:', err);
-      const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to process bridge request';
-      console.error('Error details:', { 
-        message: errorMessage, 
-        status: err.response?.status,
-        data: err.response?.data 
-      });
-      setError(errorMessage);
+      const message =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        'Bridge transaction failed';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -152,427 +420,331 @@ function BridgeTab({ publicKey, connected, bridgeInfo, onBridgeComplete }) {
 
   return (
     <div className="tab-content-wrapper">
-      <h2>Bridge to Solana</h2>
-      <p className="tab-description">
-        Send BTC to the bridge address, then claim your tokens. No zenZEC minting required - direct token swaps via Jupiter DEX.
-      </p>
-      <p className="tab-description">
-        Mint zenZEC tokens on Solana. Supports demo mode, Bitcoin verification, and Zcash verification.
-      </p>
+      <div className="section-header">
+        <h2>Flash Bridge</h2>
+        <p className="tab-description">
+          Bridge Bitcoin deposits into native ZEC liquidity on Solana, protected by Arcium MPC privacy.
+        </p>
+      </div>
 
       {!connected && (
-        <div className="message warning-message" style={{ marginBottom: '1rem' }}>
-          <strong>⚠️ Wallet Not Connected</strong>
-          <p>Please connect your Solana wallet using the button at the top of the page to use this feature.</p>
+        <div className="message warning-message">
+          <strong>Solana wallet not connected</strong>
+          <p>Use the SOL wallet button at the top-right to authorize payouts.</p>
         </div>
       )}
 
-      {/* Bitcoin Testnet Wallet Generator */}
-      <div className="wallet-generator-section" style={{ marginBottom: '2rem', textAlign: 'center' }}>
-        <div className="message info-message" style={{ marginBottom: '1rem' }}>
-          <strong>🎬 Want to see FLASH Bridge work with real BTC?</strong>
-          <p>Generate a Bitcoin testnet wallet and fund it to demonstrate BTC → zenZEC bridging!</p>
+      {!btcConnected && (
+        <div className="message warning-message">
+          <strong>Bitcoin wallet not connected</strong>
+          <p>Use the BTC wallet button at the top-right to enable direct bridging.</p>
         </div>
-        <button
-          type="button"
-          className="primary-button demo-button"
-          onClick={() => setShowWalletGenerator(true)}
-          style={{
-            backgroundColor: '#f7931a',
-            border: '2px solid #f7931a',
-            fontSize: '1.1rem',
-            padding: '0.75rem 1.5rem',
-            marginBottom: '1rem'
-          }}
-        >
-          ₿ Generate Bitcoin Testnet Wallet
-        </button>
-        {generatedWallets && (
-          <div className="message success-message">
-            ✅ Bitcoin testnet wallet generated! Get testnet BTC from a faucet and bridge to zenZEC.
-          </div>
-        )}
-      </div>
+      )}
 
-      <form onSubmit={handleBridge} className="bridge-form">
-        <div className="form-group">
-          <label htmlFor="amount">Amount (zenZEC)</label>
-          <input
-            id="amount"
-            type="number"
-            step="0.000001"
-            min="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.0"
-            disabled={loading}
-            required
-          />
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="bitcoinTxHash">Bitcoin TX Hash (Optional)</label>
-          <input
-            id="bitcoinTxHash"
-            type="text"
-            value={bitcoinTxHash}
-            onChange={(e) => setBitcoinTxHash(e.target.value)}
-            placeholder="Leave empty for demo mode"
-            disabled={loading}
-          />
-          <p className="helper-text">Verify Bitcoin payment before minting</p>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="zcashTxHash">Zcash TX Hash (Optional)</label>
-          <input
-            id="zcashTxHash"
-            type="text"
-            value={zcashTxHash}
-            onChange={(e) => setZcashTxHash(e.target.value)}
-            placeholder="Leave empty for demo mode"
-            disabled={loading}
-          />
-          <p className="helper-text">Verify Zcash shielded transaction</p>
-        </div>
-
-        <div className="privacy-badge" style={{
-          backgroundColor: '#00cc00',
-          color: '#000',
-          padding: '0.75rem',
-          borderRadius: '6px',
-          marginBottom: '1rem',
-          fontWeight: 'bold',
-          textAlign: 'center',
-          border: '2px solid #00ff00',
-          boxShadow: '0 0 10px rgba(0, 255, 0, 0.3)'
-        }}>
-          🔒 FULL PRIVACY ENABLED - All transactions encrypted via Arcium MPC + ZEC shielding
-        </div>
-
-        <div className="form-group checkbox-group">
-          <label>
-            <input
-              type="checkbox"
-              checked={swapToSol}
-              onChange={(e) => setSwapToSol(e.target.checked)}
-              disabled={loading}
-            />
-            <span>Swap to SOL after minting</span>
-          </label>
-          <p className="helper-text">
-            {swapToSol 
-              ? 'zenZEC will be burned and SOL sent to your wallet via relayer'
-              : 'zenZEC tokens will be minted to your wallet'}
-          </p>
-        </div>
-
-        <button 
-          type="submit" 
-          className="primary-button"
-          disabled={loading || !connected}
-          onClick={(e) => {
-            console.log('Button clicked', { loading, connected, publicKey: publicKey?.toString() });
-            if (!connected) {
-              e.preventDefault();
-              setError('Please connect your wallet first. Click the "Select Wallet" button at the top.');
+      <div className="stats-grid">
+        {metrics.map((metric, index) => (
+          <motion.div
+            key={metric.label}
+            className="metric-card"
+            initial={
+              prefersReducedMotion
+                ? { opacity: 1, y: 0 }
+                : { opacity: 0, y: 12, scale: 0.98 }
             }
-          }}
-        >
-          {loading ? 'Processing...' : !connected ? 'Connect Wallet First' : 'Bridge to Solana'}
-        </button>
-      </form>
-
-      {/* BTC Deposit Claim Section */}
-      <div className="btc-deposit-section" style={{
-        marginTop: '3rem',
-        padding: '2rem',
-        border: '2px solid #f7931a',
-        borderRadius: '8px',
-        backgroundColor: '#fff8e1'
-      }}>
-        <h3 style={{ color: '#f7931a', marginBottom: '1rem' }}>
-          ₿ Claim BTC Deposit
-        </h3>
-        <p style={{ marginBottom: '1.5rem', color: '#666' }}>
-          After sending BTC to the bridge address, enter your transaction hash and choose the token you want to receive on Solana.
-        </p>
-
-        <form onSubmit={handleBTCDepositClaim} className="btc-deposit-form">
-          <div className="form-group">
-            <label htmlFor="btcDepositTxHash" style={{ color: '#f7931a', fontWeight: 'bold' }}>
-              Bitcoin Transaction Hash *
-            </label>
-            <input
-              id="btcDepositTxHash"
-              type="text"
-              value={btcDepositTxHash}
-              onChange={(e) => setBtcDepositTxHash(e.target.value)}
-              placeholder="Enter your BTC transaction hash"
-              disabled={btcDepositLoading}
-              required
-              style={{ border: '2px solid #f7931a' }}
-            />
-            <p className="helper-text">The transaction hash from your BTC payment to the bridge address</p>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="btcDepositTokenMint" style={{ color: '#f7931a', fontWeight: 'bold' }}>
-              Desired Output Token (Optional)
-            </label>
-            <select
-              id="btcDepositTokenMint"
-              value={btcDepositTokenMint}
-              onChange={(e) => setBtcDepositTokenMint(e.target.value)}
-              disabled={btcDepositLoading}
-              style={{ border: '2px solid #f7931a' }}
-            >
-              <option value="">USDC (default)</option>
-              <option value="So11111111111111111111111111111111111111112">SOL</option>
-              <option value="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v">USDC</option>
-              <option value="Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB">USDT</option>
-              <option value="7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs">ETH (Wormhole)</option>
-              <option value="9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ9E">BTC (Wormhole)</option>
-            </select>
-            <p className="helper-text">Choose which token you want to receive. Defaults to USDC if not specified.</p>
-          </div>
-
-          <button
-            type="submit"
-            className="primary-button"
-            disabled={btcDepositLoading || !connected}
-            style={{
-              backgroundColor: '#f7931a',
-              border: '2px solid #f7931a',
-              fontSize: '1.1rem',
-              padding: '0.75rem 1.5rem'
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{
+              duration: 0.4,
+              ease: 'easeOut',
+              delay: prefersReducedMotion ? 0 : index * 0.08,
             }}
+            whileHover={
+              prefersReducedMotion
+                ? undefined
+                : { scale: 1.03, boxShadow: '0 14px 30px rgba(0,0,0,0.45)' }
+            }
           >
-            {btcDepositLoading ? '🔄 Claiming...' : !connected ? 'Connect Wallet First' : '₿ Claim BTC Deposit'}
-          </button>
-        </form>
-
-        {btcDepositError && (
-          <div className="message error-message" style={{ marginTop: '1rem' }}>
-            <strong>Error:</strong> {btcDepositError}
-          </div>
-        )}
-
-        {btcDepositResult && (
-          <div className="message success-message" style={{ marginTop: '1rem' }}>
-            <h3>✅ BTC Deposit Claimed Successfully!</h3>
-            <div className="result-details">
-              <div className="detail-row">
-                <span className="detail-label">BTC Amount:</span>
-                <span className="detail-value">{btcDepositResult.btcAmount?.toFixed(8)} BTC</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">USDC Equivalent:</span>
-                <span className="detail-value">{btcDepositResult.usdcAmount?.toFixed(2)} USDC</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Token Received:</span>
-                <span className="detail-value">{btcDepositResult.outputToken || 'USDC'}</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Swap Transaction:</span>
-                <span className="detail-value tx-link">
-                  <a
-                    href={`https://solscan.io/tx/${btcDepositResult.swapSignature}?cluster=devnet`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {btcDepositResult.swapSignature?.substring(0, 8)}...{btcDepositResult.swapSignature?.substring(btcDepositResult.swapSignature.length - 8)}
-                  </a>
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
+            <span className="label">{metric.label}</span>
+            <span className="value">{metric.value}</span>
+            <span className="caption">{metric.caption}</span>
+          </motion.div>
+        ))}
       </div>
 
-      {error && (
-        <div className="message error-message">
-          <strong>Error:</strong> {error}
-        </div>
-      )}
+      <div className="two-column">
+        <motion.section
+          className="glass-card"
+          initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          whileHover={prefersReducedMotion ? undefined : { translateY: -4 }}
+        >
+          <div className="card-title">
+            {btcConnected ? 'One-Click BTC Bridge' : 'Manual BTC Bridge'}
+          </div>
 
-      {result && (
-        <div className="message success-message">
-          <h3>✓ Bridge Request {result.status === 'confirmed' ? 'Completed' : 'Submitted'}</h3>
-          <div className="result-details">
-            <div className="detail-row">
-              <span className="detail-label">Transaction ID:</span>
-              <span className="detail-value">{result.transactionId}</span>
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Amount:</span>
-              <span className="detail-value">{(result.amount / 100000000).toFixed(6)} zenZEC</span>
-            </div>
-            {result.solanaTxSignature && (
-              <div className="detail-row">
-                <span className="detail-label">Solana TX:</span>
-                <span className="detail-value tx-link">
-                  <a 
-                    href={`https://solscan.io/tx/${result.solanaTxSignature}?cluster=${bridgeInfo?.network || 'devnet'}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+          <p>
+            {btcConnected
+              ? 'Send BTC directly from your wallet and bridge to native ZEC automatically.'
+              : 'Paste the transaction hash for your BTC transfer so the relayer can verify funds and release native ZEC to your wallet.'
+            }
+          </p>
+
+          {bridgeInfo?.bitcoin?.bridgeAddress && (
+            <div className="address-panel">
+              <div className="label">Official bridge address ({bridgeInfo.bitcoin.network})</div>
+              <code>{bridgeInfo.bitcoin.bridgeAddress}</code>
+              <motion.button
+                type="button"
+                className="copy-button"
+                onClick={handleCopyBridgeAddress}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.95 }}
+              >
+                Copy address
+              </motion.button>
+              <AnimatePresence>
+                {copyFeedback && (
+                  <motion.span
+                    className="copy-feedback-badge"
+                    initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+                    transition={{ duration: 0.25 }}
                   >
-                    {result.solanaTxSignature.substring(0, 16)}...
-                  </a>
-                </span>
-              </div>
-            )}
-            {result.bitcoinVerification && (
-              <div className="detail-row">
-                <span className="detail-label">Bitcoin Verified:</span>
-                <span className="detail-value">✓ {result.bitcoinVerification.amountBTC} BTC</span>
-              </div>
-            )}
-            {result.zcashVerification && (
-              <div className="detail-row">
-                <span className="detail-label">Zcash Verified:</span>
-                <span className="detail-value">✓ {result.zcashVerification.amount} ZEC</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                    {copyFeedback}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
-      {/* SOL → zenZEC Swap Section */}
-      <div className="action-card" style={{ marginTop: '2rem', borderTop: '2px solid #333', paddingTop: '2rem' }}>
-        <h3>Swap SOL → zenZEC</h3>
-        <p className="tab-description">
-          Swap your SOL for zenZEC tokens. Supports optional Arcium privacy encryption.
+          {btcConnected ? (
+            // Direct bridging form
+            <form onSubmit={handleDirectBridge} className="form-stack">
+              <div className="input-group">
+                <label htmlFor="sendAmount">BTC Amount to Send</label>
+                <input
+                  id="sendAmount"
+                  type="number"
+                  value={sendAmount}
+                  onChange={(e) => setSendAmount(e.target.value)}
+                  placeholder="0.0001"
+                  step="0.00000001"
+                  min="0.00001"
+                  disabled={loading || btcLoading}
+                  required
+                />
+                <p className="helper-text">
+                  Enter the amount of BTC to send to the bridge. Minimum: 0.00001 BTC. The transaction will be sent directly from your connected wallet.
+                </p>
+              </div>
+
+              <motion.button
+                type="submit"
+                disabled={loading || btcLoading || !connected || !btcConnected || !sendAmount}
+                className="primary-button"
+                onClick={(e) => onLightningTrigger && onLightningTrigger(e)}
+                whileHover={
+                  loading || btcLoading || !connected || !btcConnected || !sendAmount || prefersReducedMotion
+                    ? undefined
+                    : { scale: 1.01 }
+                }
+                whileTap={
+                  loading || btcLoading || !connected || !btcConnected || !sendAmount || prefersReducedMotion
+                    ? undefined
+                    : { scale: 0.97 }
+                }
+              >
+                {loading || btcLoading ? 'Processing...' : '🚀 Bridge BTC → ZEC'}
+              </motion.button>
+            </form>
+          ) : (
+            // Manual bridging form (existing)
+            <form onSubmit={handleBridge} className="form-stack">
+              <div className="input-group">
+                <label htmlFor="bitcoinTxHash">Bitcoin Transaction Hash</label>
+                <input
+                  id="bitcoinTxHash"
+                  type="text"
+                  value={bitcoinTxHash}
+                  onChange={(e) => setBitcoinTxHash(e.target.value)}
+                  placeholder="e.g. 3f05b1..."
+                  disabled={loading}
+                  required
+                />
+                <p className="helper-text">
+                  Submit after your BTC transaction has at least one confirmation; the bridge will wait for the configured threshold before minting.
+                </p>
+              </div>
+
+              <motion.button
+                type="submit"
+                disabled={loading || !connected || !bitcoinTxHash.trim()}
+                className="primary-button"
+                onClick={(e) => onLightningTrigger && onLightningTrigger(e)}
+                whileHover={
+                  loading || !connected || !bitcoinTxHash.trim() || prefersReducedMotion
+                    ? undefined
+                    : { scale: 1.01 }
+                }
+                whileTap={
+                  loading || !connected || !bitcoinTxHash.trim() || prefersReducedMotion
+                    ? undefined
+                    : { scale: 0.97 }
+                }
+              >
+                {loading ? 'Processing...' : 'Bridge BTC → ZEC'}
+              </motion.button>
+            </form>
+          )}
+          <div className="bridge-timeline">
+            {timeline.map((step, index) => (
+              <motion.div
+                key={step.label}
+                className={`timeline-step ${step.status}`}
+                initial={
+                  prefersReducedMotion
+                    ? { opacity: 1, y: 0 }
+                    : { opacity: 0, y: 12 }
+                }
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: prefersReducedMotion ? 0 : index * 0.05 }}
+              >
+                <span className="timeline-label">{step.label}</span>
+                <span className="timeline-helper">{step.helper}</span>
+              </motion.div>
+            ))}
+          </div>
+
+          {(result?.transactionId || transactionStatus || statusHistory.length > 0 || statusError) && (
+            <div className="status-history-card">
+              <div className="status-history-header">
+                <span>Status feed</span>
+                {(transactionStatus || result?.status) && (
+                  <span className={`status-pill ${transactionStatus || result?.status}`}>
+                    {formatStatusLabel(transactionStatus || result?.status)}
+                  </span>
+                )}
+              </div>
+              {statusError ? (
+                <p className="status-history-error">{statusError}</p>
+              ) : statusHistory.length > 0 ? (
+                <ul className="status-history-list">
+                  {statusHistory.map((entry, index) => (
+                    <li key={`${entry.status}-${entry.created_at || index}`} className="status-history-item">
+                      <span className="status-history-status">{formatStatusLabel(entry.status)}</span>
+                      <span className="status-history-time">{formatStatusTimestamp(entry.created_at)}</span>
+                      {entry.notes && <span className="status-history-notes">{entry.notes}</span>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="status-history-empty">Awaiting bridge status...</p>
+              )}
+            </div>
+          )}
+        </motion.section>
+
+        <motion.section
+          className="glass-card compact"
+          initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut', delay: prefersReducedMotion ? 0 : 0.05 }}
+        >
+          <div className="card-title">Reserve snapshot</div>
+          <div className="balance-grid">
+            <div className="balance-item-large">
+              <span className="balance-label">BTC pool</span>
+              <span className="balance-value-large">
+                {btcReserve !== null ? `${btcReserve.toFixed(6)} BTC` : '—'}
+              </span>
+            </div>
+            <div className="balance-item-large">
+              <span className="balance-label">ZEC treasury</span>
+              <span className="balance-value-large">
+                {zecReserve !== null ? `${zecReserve.toFixed(6)} ZEC` : '—'}
+              </span>
+            </div>
+          </div>
+          <p className="helper-text">Reserves auto-refresh after each successful bridge or redemption.</p>
+        </motion.section>
+      </div>
+
+      <motion.div
+        className="glass-card accent"
+        initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: 'easeOut', delay: prefersReducedMotion ? 0 : 0.08 }}
+      >
+        <div className="card-title">Redeem native ZEC back to BTC</div>
+        <p>
+          When you are ready to exit, transfer native ZEC to the treasury and the relayer will decrypt your BTC address via Arcium MPC.
         </p>
-        <form onSubmit={async (e) => {
-          e.preventDefault();
-          if (!connected || !publicKey) {
-            setSwapError('Please connect your wallet first');
-            return;
-          }
-          if (!solAmount || parseFloat(solAmount) <= 0) {
-            setSwapError('Please enter a valid SOL amount');
-            return;
-          }
+        <ol className="step-list">
+          <li>Encrypt your BTC address inside the Arcium tab.</li>
+          <li>Send native ZEC to the treasury account displayed above.</li>
+          <li>Relayer verifies the transfer and releases BTC to your decrypted address.</li>
+        </ol>
+      </motion.div>
 
-          setSwapLoading(true);
-          setSwapError(null);
-          setSwapResult(null);
-
-          try {
-            // PRIVACY ALWAYS ON: Encryption handled automatically by backend
-            const response = await axios.post(`${API_URL}/api/bridge/swap-sol-to-zenzec`, {
-              solanaAddress: publicKey.toString(),
-              solAmount: parseFloat(solAmount),
-            });
-            setSwapResult(response.data);
-            if (onBridgeComplete) onBridgeComplete();
-          } catch (err) {
-            setSwapError(err.response?.data?.error || 'Failed to swap SOL to zenZEC');
-          } finally {
-            setSwapLoading(false);
-          }
-        }}>
-          <div className="form-group">
-            <label htmlFor="solAmount">SOL Amount</label>
-            <input
-              id="solAmount"
-              type="number"
-              step="0.000001"
-              min="0"
-              value={solAmount}
-              onChange={(e) => setSolAmount(e.target.value)}
-              placeholder="0.0"
-              disabled={swapLoading || !connected}
-              required
-            />
-            <p className="helper-text">
-              Exchange rate: 1 SOL = {process.env.REACT_APP_SOL_TO_ZENZEC_RATE || '100'} zenZEC
-            </p>
-          </div>
-
-          <div className="privacy-badge" style={{
-            backgroundColor: '#00cc00',
-            color: '#000',
-            padding: '0.75rem',
-            borderRadius: '6px',
-            marginBottom: '1rem',
-            fontWeight: 'bold',
-            textAlign: 'center',
-            border: '2px solid #00ff00',
-            boxShadow: '0 0 10px rgba(0, 255, 0, 0.3)'
-          }}>
-            🔒 FULL PRIVACY ENABLED - Amount encrypted via Arcium MPC
-          </div>
-
-          <button 
-            type="submit" 
-            className="primary-button"
-            disabled={swapLoading || !connected}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            className="message error-message"
+            initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -12 }}
+            transition={{ duration: 0.3 }}
           >
-            {swapLoading ? 'Swapping...' : 'Swap SOL → zenZEC'}
-          </button>
-        </form>
-
-        {swapError && (
-          <div className="message error-message">
-            <strong>Error:</strong> {swapError}
-          </div>
+            <strong>Bridge error</strong>
+            <p>{error}</p>
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        {swapResult && (
-          <div className="message success-message">
-            <h4>✓ {swapResult.message}</h4>
-            {swapResult.demoMode && (
-              <p style={{ fontSize: '0.9rem', marginTop: '10px', fontStyle: 'italic', color: '#FFD700' }}>
-                ⚡ Demo Mode: This is a mock transaction for demonstration purposes
-              </p>
-            )}
+      <AnimatePresence>
+        {result && (
+          <motion.div
+            className="message success-message"
+            initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 12, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.98 }}
+            transition={{ duration: 0.35 }}
+          >
+            <h3>Bridge transaction confirmed</h3>
             <div className="result-details">
               <div className="detail-row">
-                <span className="detail-label">SOL Amount:</span>
-                <span className="detail-value">{swapResult.solAmount} SOL</span>
+                <span className="detail-label">Transaction ID</span>
+                <span className="detail-value">{result.transactionId}</span>
               </div>
-              {swapResult.zenZECAmount && (
+              <div className="detail-row">
+                <span className="detail-label">Amount</span>
+                <span className="detail-value">{result.amount} ZEC</span>
+              </div>
+              <div className="detail-row">
+                <span className="detail-label">Status</span>
+                <span className={`detail-value status-${(transactionStatus || result.status || '').toLowerCase()}`}>
+                  {formatStatusLabel(transactionStatus || result.status)}
+                </span>
+              </div>
+              {result.solanaTxSignature && (
                 <div className="detail-row">
-                  <span className="detail-label">zenZEC Amount:</span>
-                  <span className="detail-value">{swapResult.zenZECAmount.toFixed(6)} zenZEC</span>
+                  <span className="detail-label">Solana TX</span>
+                  <span className="detail-value">
+                    <a
+                      className="tx-link"
+                      href={`https://solscan.io/tx/${result.solanaTxSignature}?cluster=${bridgeInfo?.network || 'devnet'}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {result.solanaTxSignature.slice(0, 12)}…
+                    </a>
+                  </span>
                 </div>
               )}
-              <div className="detail-row">
-                <span className="detail-label">Transaction:</span>
-                <span className="detail-value tx-link">
-                  <a 
-                    href={`https://solscan.io/tx/${swapResult.solanaTxSignature}?cluster=${bridgeInfo?.network || 'devnet'}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {swapResult.solanaTxSignature.substring(0, 16)}...
-                  </a>
-                  {swapResult.demoMode && (
-                    <span style={{ fontSize: '0.8rem', marginLeft: '10px', fontStyle: 'italic', color: '#FFD700' }}>
-                      (Mock)
-                    </span>
-                  )}
-                </span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Privacy:</span>
-                <span className="detail-value" style={{color: '#00ff00'}}>✓ FULL - Encrypted via Arcium MPC</span>
-              </div>
             </div>
-          </div>
+          </motion.div>
         )}
-
-        {/* Wallet Generator Modal */}
-        {showWalletGenerator && (
-          <TestnetWalletGenerator
-            onWalletsGenerated={handleWalletsGenerated}
-            onClose={() => setShowWalletGenerator(false)}
-          />
-        )}
-      </div>
+      </AnimatePresence>
     </div>
   );
 }

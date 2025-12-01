@@ -140,6 +140,44 @@ CREATE INDEX IF NOT EXISTS idx_proofs_expires_at ON cryptographic_proofs(expires
 CREATE INDEX IF NOT EXISTS idx_verifications_tx_id ON proof_verifications(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_verifications_timestamp ON proof_verifications(verification_timestamp);
 
+-- Transfer Metadata Table
+-- Classifies treasury transfers to prevent processing non-redemption transfers
+CREATE TABLE IF NOT EXISTS transfer_metadata (
+    id SERIAL PRIMARY KEY,
+    solana_tx_signature VARCHAR(88) UNIQUE NOT NULL,
+    transfer_type VARCHAR(20) NOT NULL, -- 'redemption', 'refund', 'funding', 'admin', 'test'
+    user_address VARCHAR(44), -- Solana address of user (for redemptions)
+    amount DECIMAL(20, 8), -- Amount in smallest units (for validation)
+    metadata JSONB, -- Additional metadata (notes, admin info, etc.)
+    created_by VARCHAR(50) NOT NULL DEFAULT 'system', -- 'system', 'admin', 'api', 'relayer'
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for transfer metadata
+CREATE INDEX IF NOT EXISTS idx_transfer_metadata_signature ON transfer_metadata(solana_tx_signature);
+CREATE INDEX IF NOT EXISTS idx_transfer_metadata_type ON transfer_metadata(transfer_type);
+CREATE INDEX IF NOT EXISTS idx_transfer_metadata_user ON transfer_metadata(user_address);
+CREATE INDEX IF NOT EXISTS idx_transfer_metadata_created_at ON transfer_metadata(created_at);
+
+-- Service Coordination Table
+-- Prevents multiple services from processing the same transaction
+CREATE TABLE IF NOT EXISTS service_coordination (
+    id SERIAL PRIMARY KEY,
+    transaction_id VARCHAR(255) NOT NULL UNIQUE,
+    transaction_type VARCHAR(50) NOT NULL,
+    processing_service VARCHAR(50) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'processing', -- 'processing', 'completed', 'failed'
+    started_at TIMESTAMP DEFAULT NOW(),
+    completed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for service coordination
+CREATE INDEX IF NOT EXISTS idx_service_coordination_tx_id ON service_coordination(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_service_coordination_service ON service_coordination(processing_service);
+CREATE INDEX IF NOT EXISTS idx_service_coordination_status ON service_coordination(status);
+CREATE INDEX IF NOT EXISTS idx_service_coordination_started_at ON service_coordination(started_at);
+
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -161,5 +199,74 @@ CREATE TRIGGER update_burn_transactions_updated_at BEFORE UPDATE ON burn_transac
 
 -- Trigger for proof table
 CREATE TRIGGER update_cryptographic_proofs_updated_at BEFORE UPDATE ON cryptographic_proofs
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- BTC Deposits Table
+-- Tracks all BTC deposits from detection through processing
+-- Enables fast processing with configurable confirmation requirements
+CREATE TABLE IF NOT EXISTS btc_deposits (
+    id SERIAL PRIMARY KEY,
+    tx_hash VARCHAR(64) UNIQUE NOT NULL,
+    bridge_address VARCHAR(255) NOT NULL,
+    amount_satoshis BIGINT NOT NULL,
+    amount_btc DECIMAL(20, 8) NOT NULL,
+    confirmations INT NOT NULL DEFAULT 0,
+    required_confirmations INT NOT NULL DEFAULT 1, -- Configurable (default 1 for speed)
+    block_height INT,
+    block_time TIMESTAMP,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending', -- 'pending', 'confirmed', 'processed', 'failed'
+    solana_address VARCHAR(44), -- Set when user claims
+    solana_tx_signature VARCHAR(88), -- Set when processed
+    output_token VARCHAR(44), -- Token user receives
+    detected_at TIMESTAMP DEFAULT NOW(),
+    confirmed_at TIMESTAMP,
+    processed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for BTC deposits
+CREATE INDEX IF NOT EXISTS idx_btc_deposits_tx_hash ON btc_deposits(tx_hash);
+CREATE INDEX IF NOT EXISTS idx_btc_deposits_bridge_address ON btc_deposits(bridge_address);
+CREATE INDEX IF NOT EXISTS idx_btc_deposits_status ON btc_deposits(status);
+CREATE INDEX IF NOT EXISTS idx_btc_deposits_confirmations ON btc_deposits(confirmations);
+CREATE INDEX IF NOT EXISTS idx_btc_deposits_detected_at ON btc_deposits(detected_at);
+CREATE INDEX IF NOT EXISTS idx_btc_deposits_solana_address ON btc_deposits(solana_address);
+
+-- Trigger for btc_deposits updated_at
+CREATE TRIGGER update_btc_deposits_updated_at BEFORE UPDATE ON btc_deposits
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- BTC Withdrawals Table
+-- Tracks all outgoing BTC transactions for complete audit trail
+-- Ensures ingoings align with outgoings for verifiability
+CREATE TABLE IF NOT EXISTS btc_withdrawals (
+    id SERIAL PRIMARY KEY,
+    tx_hash VARCHAR(64) UNIQUE NOT NULL,
+    bridge_address VARCHAR(255) NOT NULL,
+    amount_satoshis BIGINT NOT NULL,
+    amount_btc DECIMAL(20, 8) NOT NULL,
+    recipient_address VARCHAR(255) NOT NULL,
+    confirmations INT NOT NULL DEFAULT 0,
+    block_height INT,
+    block_time TIMESTAMP,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending', -- 'pending', 'confirmed', 'failed'
+    solana_tx_signature VARCHAR(88), -- Solana burn transaction that triggered this
+    solana_address VARCHAR(44), -- User's Solana address
+    zen_zec_amount DECIMAL(20, 8), -- Amount of zenZEC burned
+    created_at TIMESTAMP DEFAULT NOW(),
+    confirmed_at TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for BTC withdrawals
+CREATE INDEX IF NOT EXISTS idx_btc_withdrawals_tx_hash ON btc_withdrawals(tx_hash);
+CREATE INDEX IF NOT EXISTS idx_btc_withdrawals_bridge_address ON btc_withdrawals(bridge_address);
+CREATE INDEX IF NOT EXISTS idx_btc_withdrawals_status ON btc_withdrawals(status);
+CREATE INDEX IF NOT EXISTS idx_btc_withdrawals_solana_tx ON btc_withdrawals(solana_tx_signature);
+CREATE INDEX IF NOT EXISTS idx_btc_withdrawals_created_at ON btc_withdrawals(created_at);
+
+-- Trigger for btc_withdrawals updated_at
+CREATE TRIGGER update_btc_withdrawals_updated_at BEFORE UPDATE ON btc_withdrawals
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

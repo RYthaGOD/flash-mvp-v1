@@ -146,6 +146,14 @@ SOL Payment → Native ZEC Transfer → Encrypted BTC Address → BTC Withdrawal
 
 ## 🔌 **API Endpoints**
 
+> **Admin Security**  
+> Endpoints marked with 🛡 require the `x-api-key` header. Set `ADMIN_API_KEY` in `backend/.env` and call using:
+> ```bash
+> curl -H "x-api-key: $ADMIN_API_KEY" http://localhost:3001/api/bridge/transfer-metadata/<signature>
+> ```
+> **Client Requests**  
+> If you set `CLIENT_API_KEY`, every browser/mobile POST must send `x-client-id: <CLIENT_API_KEY>` to hit mutation endpoints such as `/api/bridge` or `/api/zcash/*`. This acts as a lightweight CSRF guard for first-party apps.
+
 ### Bridge Operations
 ```http
 POST /api/bridge              # Transfer native ZEC tokens
@@ -153,6 +161,8 @@ GET  /api/bridge/info         # Bridge configuration
 GET  /api/bridge/transaction/:txId  # Transaction status
 POST /api/bridge/jupiter-swap # Swap native ZEC for other tokens
 POST /api/bridge/btc-deposit  # Claim BTC deposit (exchange rate-based)
+POST /api/bridge/mark-redemption 🛡  # Admin override to mark redemption
+GET  /api/bridge/transfer-metadata/:signature 🛡 # View transfer metadata
 ```
 
 ### Zcash Integration
@@ -177,6 +187,7 @@ POST /api/arcium/random       # Trustless random generation
 ### Backend `.env`
 ```env
 PORT=3001
+FRONTEND_ORIGIN=http://localhost:3000
 SOLANA_RPC_URL=https://api.devnet.solana.com
 SOLANA_NETWORK=devnet
 PROGRAM_ID=YourProgramIdHere
@@ -188,7 +199,8 @@ NATIVE_ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS  # Official native 
 # Bitcoin Configuration (Exchange Rate-Based)
 BITCOIN_NETWORK=testnet
 BITCOIN_BRIDGE_ADDRESS=your_btc_address
-BITCOIN_EXPLORER_URL=https://blockstream.info/api
+BITCOIN_EXPLORER_URL=https://blockstream.info/testnet/api
+FALLBACK_BTC_TO_ZEC_RATE=1
 
 # Zcash Configuration
 ZCASH_NETWORK=testnet
@@ -197,6 +209,11 @@ ZCASH_BRIDGE_ADDRESS=your_zcash_address
 # Relayer Configuration
 ENABLE_RELAYER=false
 RELAYER_KEYPAIR_PATH=~/.config/solana/id.json
+
+# Admin Security
+ADMIN_API_KEY=change-me-admin-key
+# Optional client signature for browser requests
+CLIENT_API_KEY=optional-client-key
 
 # Arcium MPC (for real privacy)
 ENABLE_ARCIUM_MPC=true

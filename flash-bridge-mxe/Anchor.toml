@@ -3,10 +3,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-flash_bridge_mxe = "FLASH_BRIDGE_MXE_PROGRAM_ID_HERE"
+flash_bridge_mxe = "CULoJigMJeVrmXVYPu8D9pdmfjAZnzdAwWvTqWvz1XkP"
 
 [programs.localnet]
-flash_bridge_mxe = "FLASH_BRIDGE_MXE_PROGRAM_ID_HERE"
+flash_bridge_mxe = "CULoJigMJeVrmXVYPu8D9pdmfjAZnzdAwWvTqWvz1XkP"
 
 [registry]
 url = "https://api.apr.dev"

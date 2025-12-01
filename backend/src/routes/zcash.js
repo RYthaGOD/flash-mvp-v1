@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const zcashService = require('../services/zcash');
+const { requireClientSignature } = require('../middleware/clientAuth');
 
 /**
  * Get Zcash network information
@@ -22,7 +23,7 @@ router.get('/info', async (req, res) => {
  * Verify a Zcash transaction
  * POST body: { txHash, expectedAmount }
  */
-router.post('/verify-transaction', async (req, res) => {
+router.post('/verify-transaction', requireClientSignature, async (req, res) => {
   try {
     const { txHash, expectedAmount } = req.body;
 
@@ -104,7 +105,7 @@ router.get('/price', async (req, res) => {
  * Validate a Zcash address
  * POST body: { address }
  */
-router.post('/validate-address', (req, res) => {
+router.post('/validate-address', requireClientSignature, (req, res) => {
   try {
     const { address } = req.body;
 

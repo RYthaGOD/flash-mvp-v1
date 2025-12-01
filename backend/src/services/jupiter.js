@@ -10,11 +10,22 @@ class JupiterService {
   constructor() {
     this.connection = new Connection(process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com');
     this.jupiterApi = createJupiterApiClient();
+    this.treasuryKeypair = null;
+    this.initialized = false;
+    this.privacyMode = process.env.JUPITER_PRIVACY_MODE || 'high'; // 'standard', 'high', 'maximum'
+    this.minDelay = parseInt(process.env.JUPITER_MIN_DELAY || '2000', 10); // 2 seconds
+    this.maxDelay = parseInt(process.env.JUPITER_MAX_DELAY || '8000', 10); // 8 seconds
+  }
 
-    // Load treasury keypair
+  async initialize() {
+    if (this.initialized) return;
+
+    // Load treasury keypair asynchronously
     try {
       const keypairPath = path.join(__dirname, '..', '..', 'treasury-keypair.json');
-      const secretKey = JSON.parse(fs.readFileSync(keypairPath));
+      const fsPromises = require('fs').promises;
+      const keypairData = await fsPromises.readFile(keypairPath, 'utf8');
+      const secretKey = JSON.parse(keypairData);
       this.treasuryKeypair = Keypair.fromSecretKey(Uint8Array.from(secretKey));
       console.log('✅ Jupiter service initialized with treasury:', this.treasuryKeypair.publicKey.toBase58());
     } catch (error) {
@@ -22,10 +33,7 @@ class JupiterService {
       this.treasuryKeypair = null;
     }
 
-    // MEV Protection settings
-    this.privacyMode = process.env.JUPITER_PRIVACY_MODE || 'high'; // 'standard', 'high', 'maximum'
-    this.minDelay = parseInt(process.env.JUPITER_MIN_DELAY) || 2000; // 2 seconds
-    this.maxDelay = parseInt(process.env.JUPITER_MAX_DELAY) || 8000; // 8 seconds
+    this.initialized = true;
   }
 
   async getQuote(inputMint, outputMint, amount, slippageBps = 50) {
@@ -34,6 +42,7 @@ class JupiterService {
     }
 
     try {
+      console.log(`   Getting quote: ${inputMint.toBase58()} → ${outputMint.toBase58()}, Amount: ${amount}`);
       const quote = await this.jupiterApi.quoteGet({
         inputMint: inputMint.toBase58(),
         outputMint: outputMint.toBase58(),
@@ -43,10 +52,21 @@ class JupiterService {
         asLegacyTransaction: false,
       });
 
+      if (!quote || !quote.outAmount) {
+        throw new Error('Invalid quote response from Jupiter API');
+      }
+
       return quote;
     } catch (error) {
       console.error('Error getting Jupiter quote:', error);
-      throw error;
+      if (error.response) {
+        console.error('   Jupiter API response:', error.response.status, error.response.data);
+        throw new Error(`Jupiter API error: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+      } else if (error.message) {
+        throw new Error(`Jupiter quote error: ${error.message}`);
+      } else {
+        throw new Error('Response returned an error code');
+      }
     }
   }
 
@@ -78,17 +98,10 @@ class JupiterService {
     }
 
     try {
-      // Get swap instructions
-      const swapInstructions = await this.jupiterApi.swapInstructionsPost({
-        swapRequest: {
-          quoteResponse: quote,
-          userPublicKey: userPublicKey.toBase58(),
-          wrapAndUnwrapSol: true,
-        },
-      });
-
+      console.log(`   Executing swap for user: ${userPublicKey.toBase58()}`);
+      
       // Build transaction
-      const { swapTransaction } = await this.jupiterApi.swapPost({
+      const swapResponse = await this.jupiterApi.swapPost({
         swapRequest: {
           quoteResponse: quote,
           userPublicKey: userPublicKey.toBase58(),
@@ -96,6 +109,12 @@ class JupiterService {
           prioritizationFeeLamports: 'auto', // Helps against MEV in some cases
         },
       });
+
+      if (!swapResponse || !swapResponse.swapTransaction) {
+        throw new Error('Invalid swap response from Jupiter API');
+      }
+
+      const { swapTransaction } = swapResponse;
 
       // Deserialize and sign
       const transaction = Transaction.from(Buffer.from(swapTransaction, 'base64'));
@@ -122,7 +141,14 @@ class JupiterService {
       };
     } catch (error) {
       console.error('Error executing Jupiter swap:', error);
-      throw error;
+      if (error.response) {
+        console.error('   Jupiter API response:', error.response.status, error.response.data);
+        throw new Error(`Jupiter swap error: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+      } else if (error.message) {
+        throw error;
+      } else {
+        throw new Error('Response returned an error code');
+      }
     }
   }
 
@@ -230,4 +256,10 @@ class JupiterService {
   }
 }
 
-module.exports = new JupiterService();
+// Create singleton instance and initialize it
+const jupiterService = new JupiterService();
+jupiterService.initialize().catch(error => {
+  console.error('Failed to initialize Jupiter service:', error);
+});
+
+module.exports = jupiterService;

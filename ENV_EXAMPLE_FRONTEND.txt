@@ -1,0 +1,88 @@
+# ============================================================================
+# FLASH Bridge Frontend - Environment Configuration for Arcium Testnet
+# ============================================================================
+# Copy this file to .env and update with your actual values
+# File: frontend/.env.example
+# NEVER commit .env to version control!
+#
+# Note: All React environment variables MUST be prefixed with REACT_APP_
+
+# ============================================================================
+# API CONFIGURATION
+# ============================================================================
+# Backend API URL
+REACT_APP_API_URL=http://localhost:3001
+
+# ============================================================================
+# SOLANA CONFIGURATION
+# ============================================================================
+# Solana Network: devnet, testnet, mainnet-beta
+REACT_APP_SOLANA_NETWORK=devnet
+REACT_APP_SOLANA_RPC_URL=https://api.devnet.solana.com
+
+# Flash Bridge MXE Program ID (should match backend FLASH_BRIDGE_MXE_PROGRAM_ID)
+REACT_APP_FLASH_BRIDGE_MXE_PROGRAM_ID=YOUR_FLASH_BRIDGE_MXE_PROGRAM_ID_HERE
+
+# ============================================================================
+# TOKEN CONFIGURATION
+# ============================================================================
+# Native ZEC mint address (should match backend NATIVE_ZEC_MINT)
+REACT_APP_NATIVE_ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS
+
+# Custom zenZEC mint (only if not using native ZEC)
+# REACT_APP_ZENZEC_MINT=YourZenZECMintAddressHere
+
+# ============================================================================
+# EXCHANGE RATES (for display)
+# ============================================================================
+# These rates are for UI display only
+# Actual rates are determined by backend/exchange APIs
+REACT_APP_SOL_TO_ZENZEC_RATE=100
+REACT_APP_ZENZEC_TO_BTC_RATE=0.0001
+REACT_APP_ZEC_TO_BTC_RATE=0.0001
+
+# ============================================================================
+# ARCIUM CONFIGURATION
+# ============================================================================
+# Arcium Network (should match backend)
+REACT_APP_ARCIUM_NETWORK=testnet
+
+# Enable Arcium MPC features in UI
+REACT_APP_ENABLE_ARCIUM_MPC=true
+
+# Arcium API endpoint (if needed for frontend)
+# REACT_APP_ARCIUM_ENDPOINT=https://api.arcium.testnet.com
+
+# ============================================================================
+# NETWORK CONFIGURATION
+# ============================================================================
+# Bitcoin Network
+REACT_APP_BITCOIN_NETWORK=testnet
+
+# Zcash Network
+REACT_APP_ZCASH_NETWORK=testnet
+
+# ============================================================================
+# FEATURE FLAGS
+# ============================================================================
+# Enable/disable specific features in UI
+REACT_APP_ENABLE_BITCOIN_BRIDGE=true
+REACT_APP_ENABLE_ZCASH_BRIDGE=true
+REACT_APP_ENABLE_TOKEN_MANAGEMENT=true
+REACT_APP_ENABLE_PRIVACY_FEATURES=true
+
+# ============================================================================
+# UI CONFIGURATION
+# ============================================================================
+# App name and branding
+REACT_APP_APP_NAME=FLASH Bridge
+REACT_APP_APP_VERSION=1.0.0
+
+# ============================================================================
+# SECURITY NOTES
+# ============================================================================
+# 1. Never commit this file with real values
+# 2. Frontend env vars are exposed in the browser bundle
+# 3. Do NOT put sensitive keys (API keys, secrets) in frontend .env
+# 4. Only use frontend env vars for public configuration
+

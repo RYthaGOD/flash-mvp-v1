@@ -55,7 +55,7 @@ class ArciumSolanaClient {
       this.programId = new PublicKey(programIdStr);
       
       // Load or generate keypair for signing transactions
-      this.keypair = this._loadOrGenerateKeypair();
+      this.keypair = await this._loadOrGenerateKeypair();
       
       // Create Anchor provider
       const wallet = {
@@ -117,19 +117,21 @@ class ArciumSolanaClient {
   /**
    * Load or generate keypair for signing transactions
    */
-  _loadOrGenerateKeypair() {
+  async _loadOrGenerateKeypair() {
     try {
-      const fs = require('fs');
+      const fs = require('fs').promises;
       const path = require('path');
       const keypairPath = path.join(__dirname, '..', '..', 'arcium-keypair.json');
-      
-      if (fs.existsSync(keypairPath)) {
-        const keypairData = JSON.parse(fs.readFileSync(keypairPath, 'utf8'));
-        return Keypair.fromSecretKey(Uint8Array.from(keypairData));
-      } else {
-        // Generate new keypair
+
+      try {
+        await fs.access(keypairPath);
+        const keypairData = await fs.readFile(keypairPath, 'utf8');
+        const keypairJson = JSON.parse(keypairData);
+        return Keypair.fromSecretKey(Uint8Array.from(keypairJson));
+      } catch (fileAccessError) {
+        // File doesn't exist, generate new keypair
         const newKeypair = Keypair.generate();
-        fs.writeFileSync(keypairPath, JSON.stringify(Array.from(newKeypair.secretKey)));
+        await fs.writeFile(keypairPath, JSON.stringify(Array.from(newKeypair.secretKey)));
         console.log(`📝 Generated new Arcium keypair: ${newKeypair.publicKey.toBase58()}`);
         return newKeypair;
       }

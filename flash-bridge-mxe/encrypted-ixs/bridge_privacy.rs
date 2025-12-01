@@ -130,6 +130,9 @@ mod bridge_circuits {
         if input.amount == 0 {
             panic!("Bridge amount cannot be zero");
         }
+        if input.source_chain.is_empty() || input.dest_chain.is_empty() {
+            panic!("Source and destination chains cannot be empty");
+        }
 
         // Generate computation ID for linking all outputs
         let computation_id = generate_computation_id();
@@ -211,8 +214,11 @@ mod bridge_circuits {
     ) -> Enc<Shared, u64> {
         let data = swap_data.to_arcis();
 
-        // Extract encrypted ZEC amount
+        // Extract encrypted ZEC amount with bounds check
         let zen_bytes = &data.zen_amount;
+        if zen_bytes.len() < 8 {
+            panic!("Invalid zen_amount: must be at least 8 bytes");
+        }
         let zen_amount = u64::from_le_bytes(zen_bytes[..8].try_into().unwrap());
 
         // Perform private multiplication: zen_amount * exchange_rate

@@ -1,7 +1,9 @@
 const { LAMPORTS_PER_SOL, SystemProgram, Transaction, PublicKey } = require('@solana/web3.js');
 const { EventParser } = require('@coral-xyz/anchor');
+const crypto = require('crypto');
 const solanaService = require('./solana');
 const databaseService = require('./database');
+const { createContextLogger, createEnhancedError } = require('../utils/errorContext');
 
 class RelayerService {
   constructor() {
@@ -46,18 +48,21 @@ class RelayerService {
   /**
    * Start listening for BurnSwapEvent from the Solana program
    * When detected, send SOL to the user
+   *
+   * 🚫 DISABLED: BurnSwapEvent does not exist in flash_bridge_mxe program.
+   * The flash_bridge_mxe program is designed for privacy-preserving bridge operations
+   * and does not include burn/swap functionality.
    */
   async startListening() {
-    if (this.isListening) {
-      console.log('Relayer already listening');
-      return;
-    }
+    console.log('🚫 Relayer service DISABLED - flash_bridge_mxe program does not support burn/swap operations');
+    console.log('ℹ️  The flash_bridge_mxe program is designed for privacy-preserving bridge operations only');
+    console.log('ℹ️  Burn/swap functionality is not implemented in this program version');
 
-    console.log('Starting relayer listener for BurnSwapEvent...');
+    // Mark as "listening" but don't actually start
     this.isListening = true;
-    this.reconnectAttempts = 0;
 
-    await this.subscribeToEvents();
+    // Don't subscribe to events - they don't exist
+    return;
   }
 
   async subscribeToEvents() {
@@ -179,17 +184,21 @@ class RelayerService {
   async handleProgramLog(logs, context) {
     const signature = logs.signature;
     
-    // Prevent duplicate processing (check in-memory set first)
-    if (this.isEventProcessed(signature)) {
-      return;
-    }
-
-    // Check database if connected
+    // Check database first (database is source of truth)
+    // In-memory Map is only used for caching, not as primary check
     if (databaseService.isConnected()) {
       const isProcessed = await databaseService.isEventProcessed(signature);
       if (isProcessed) {
         console.log(`Event ${signature.substring(0, 16)}... already processed (from database)`);
-        this.markEventProcessed(signature); // Add to in-memory set
+        // Update cache
+        if (!this.isEventProcessed(signature)) {
+          this.markEventProcessed(signature);
+        }
+        return;
+      }
+    } else {
+      // Fallback to in-memory check if database not available
+      if (this.isEventProcessed(signature)) {
         return;
       }
     }
@@ -203,12 +212,15 @@ class RelayerService {
       const events = this.eventParser.parseLogs(logs.logs);
       
       // Find BurnSwapEvent
+      // ⚠️  WARNING: BurnSwapEvent does not exist in flash_bridge_mxe program
+      // This will only work if a different program with this event is deployed
       const burnEvent = events.find(e => e.name === 'BurnSwapEvent');
       
       if (burnEvent) {
-        this.markEventProcessed(signature);
         this.lastEventTime = Date.now(); // Update last event time
-        console.log(`Detected BurnSwapEvent in tx: ${signature}`);
+        console.log(`⚠️  Detected BurnSwapEvent in tx: ${signature}`);
+        console.log(`⚠️  WARNING: BurnSwapEvent should not exist in flash_bridge_mxe program`);
+        console.log(`⚠️  If this appears, the program may have been updated or wrong program ID configured`);
         
         // Extract event data
         const eventData = {
@@ -218,6 +230,7 @@ class RelayerService {
           signature
         };
         
+        // Process event (will handle database locking internally)
         await this.processBurnSwapEvent(eventData);
       }
     } catch (error) {
@@ -259,17 +272,102 @@ class RelayerService {
   async processBurnSwapEvent(event) {
     const { user, amount, signature } = event;
     
+    // Create error logger with base context
+    const logError = createContextLogger('Burn Swap Event', {
+      user: user?.toString(),
+      amount: amount ? amount / 1e8 : undefined,
+      signature
+    });
+    
     console.log(`Processing BurnSwapEvent: ${amount} zenZEC for ${user.toString()}`);
+
+    // Validate inputs
+    if (!user || !amount || !signature) {
+      throw createEnhancedError('Burn Swap Event', {
+        user: user?.toString(),
+        amount: amount ? amount / 1e8 : undefined,
+        signature
+      }, 'Invalid event data: missing required fields');
+    }
+
+    if (amount <= 0) {
+      throw createEnhancedError('Burn Swap Event', {
+        user: user.toString(),
+        amount: amount / 1e8,
+        signature
+      }, 'Invalid event data: amount must be positive');
+    }
+
+    // Validate PublicKey format
+    try {
+      const { PublicKey } = require('@solana/web3.js');
+      new PublicKey(user);
+    } catch (error) {
+      throw createEnhancedError('Burn Swap Event', {
+        user: user?.toString(),
+        amount: amount / 1e8,
+        signature
+      }, `Invalid user PublicKey format: ${user}`);
+    }
+
+    // Validate signature format (Solana signatures are base58, typically 88 chars)
+    if (typeof signature !== 'string' || signature.length < 32) {
+      throw createEnhancedError('Burn Swap Event', {
+        user: user.toString(),
+        amount: amount / 1e8,
+        signature
+      }, `Invalid signature format: ${signature}`);
+    }
 
     const connection = solanaService.getConnection();
     const relayerKeypair = solanaService.relayerKeypair;
 
     if (!relayerKeypair) {
-      console.error('Relayer keypair not configured, cannot send SOL');
-      return;
+      throw createEnhancedError('Burn Swap Event', {
+        user: user.toString(),
+        amount: amount / 1e8,
+        signature
+      }, 'Relayer keypair not configured, cannot send SOL');
     }
 
+    // Use database transaction with locking to prevent duplicate processing
+    const client = databaseService.isConnected() 
+      ? await databaseService.pool.connect() 
+      : null;
+
     try {
+      // Start transaction if database is connected
+      if (client) {
+        await client.query('BEGIN');
+        
+        // Lock row and check if already processed
+        const existingEvent = await databaseService.getEventWithLock(signature, client);
+        
+        if (existingEvent) {
+          await client.query('ROLLBACK');
+          client.release();
+          console.log(`Event ${signature.substring(0, 16)}... already processed (locked check)`);
+          return; // Already processed
+        }
+        
+        // Mark as processing (insert into processed_events before processing)
+        // This prevents other instances from processing the same event
+        await databaseService.markEventProcessed({
+          eventSignature: signature,
+          eventType: 'BurnSwapEvent',
+          solanaAddress: user.toString(),
+          amount: amount / 1e8,
+        }, client);
+      } else {
+        // Fallback: check without lock if database not connected
+        const isProcessed = await databaseService.isEventProcessed(signature);
+        if (isProcessed) {
+          console.log(`Event ${signature.substring(0, 16)}... already processed (no DB lock)`);
+          return;
+        }
+      }
+
+      try {
       // Calculate SOL amount (1:1 ratio for MVP, use price oracle in production)
       // For MVP: 1 zenZEC = 0.001 SOL (example rate)
       // Adjust ZENZEC_TO_SOL_RATE in .env for production
@@ -330,43 +428,118 @@ class RelayerService {
         return sig;
       }, 3, 2000); // 3 retries, 2s base delay
       
-      console.log(`✓ Sent ${solAmount} SOL to ${user.toString()}`);
-      console.log(`Transaction: ${txSignature}`);
-      console.log(`Original burn: ${amount / 100000000} zenZEC`);
+        console.log(`✓ Sent ${solAmount} SOL to ${user.toString()}`);
+        console.log(`Transaction: ${txSignature}`);
+        console.log(`Original burn: ${amount / 100000000} zenZEC`);
 
-      // Save burn transaction to database
-      if (databaseService.isConnected()) {
+        // Save burn transaction to database (within transaction)
+        if (client) {
+          try {
+            // Use signature + random component for unique ID
+            const crypto = require('crypto');
+            const uniqueId = `burn_sol_${signature.substring(0, 16)}_${crypto.randomBytes(4).toString('hex')}`;
+            await databaseService.saveBurnTransaction({
+              txId: uniqueId,
+              solanaAddress: user.toString(),
+              amount: amount / 1e8, // Convert from smallest unit
+              targetAsset: 'SOL',
+              targetAddress: user.toString(),
+              solanaTxSignature: signature,
+              solTxSignature: txSignature,
+              status: 'confirmed',
+              encrypted: true,  // ALWAYS encrypted with Arcium MPC
+            });
+
+            // Event already marked as processed above (before processing)
+            // Commit transaction
+            await client.query('COMMIT');
+          } catch (error) {
+            // Rollback on database error
+            await client.query('ROLLBACK');
+            logError(error, { solTxSignature: txSignature, status: 'confirmed' });
+            throw createEnhancedError('Burn Swap Event', {
+              user: user.toString(),
+              amount: amount / 1e8,
+              signature,
+              solTxSignature: txSignature
+            }, `Failed to save transaction: ${error.message}`);
+          } finally {
+            client.release();
+          }
+        } else if (databaseService.isConnected()) {
+          // Fallback: save without transaction if client not available
+          try {
+            // Use signature + random component for unique ID
+            const uniqueId = `burn_sol_${signature.substring(0, 16)}_${crypto.randomBytes(4).toString('hex')}`;
+            await databaseService.saveBurnTransaction({
+              txId: uniqueId,
+              solanaAddress: user.toString(),
+              amount: amount / 1e8,
+              targetAsset: 'SOL',
+              targetAddress: user.toString(),
+              solanaTxSignature: signature,
+              solTxSignature: txSignature,
+              status: 'confirmed',
+              encrypted: true,
+            });
+
+            await databaseService.markEventProcessed({
+              eventSignature: signature,
+              eventType: 'BurnSwapEvent',
+              solanaAddress: user.toString(),
+              amount: amount / 1e8,
+            });
+          } catch (error) {
+            console.error('Error saving burn transaction to database:', error);
+            // Don't throw - transaction already succeeded on-chain
+          }
+        }
+
+        // Update cache after successful processing
+        if (!this.isEventProcessed(signature)) {
+          this.markEventProcessed(signature);
+        }
+        
+      } catch (error) {
+        // Rollback transaction on any error during processing
+        if (client) {
+          try {
+            await client.query('ROLLBACK');
+            
+            // Remove from processed_events if it was inserted
+            await client.query(
+              'DELETE FROM processed_events WHERE event_signature = $1',
+              [signature]
+            );
+          } catch (rollbackError) {
+            console.error('Error during rollback:', rollbackError);
+          } finally {
+            client.release();
+          }
+        }
+        
+        // Remove from cache to allow retry
+        this.processedEvents.delete(signature);
+        
+        console.error('Error processing burn swap event:', error);
+        throw error;
+      }
+    } catch (error) {
+      // Handle errors before transaction starts
+      if (client) {
         try {
-          const txId = `burn_sol_${signature.substring(0, 16)}_${Date.now()}`;
-          await databaseService.saveBurnTransaction({
-            txId,
-            solanaAddress: user.toString(),
-            amount: amount / 1e8, // Convert from smallest unit
-            targetAsset: 'SOL',
-            targetAddress: user.toString(),
-            solanaTxSignature: signature,
-            solTxSignature: txSignature,
-            status: 'confirmed',
-            encrypted: true,  // ALWAYS encrypted with Arcium MPC
-          });
-
-          // Mark event as processed in database
-          await databaseService.markEventProcessed({
-            eventSignature: signature,
-            eventType: 'BurnSwapEvent',
-            solanaAddress: user.toString(),
-            amount: amount / 1e8,
-          });
-        } catch (error) {
-          console.error('Error saving burn transaction to database:', error);
-          // Don't fail if database save fails
+          await client.query('ROLLBACK');
+        } catch (rollbackError) {
+          console.error('Error during rollback:', rollbackError);
+        } finally {
+          client.release();
         }
       }
       
-    } catch (error) {
-      console.error('Error processing burn swap event:', error);
-      // Remove from processed set to allow retry
+      // Remove from cache
       this.processedEvents.delete(signature);
+      
+      console.error('Error processing burn swap event:', error);
       throw error;
     }
   }

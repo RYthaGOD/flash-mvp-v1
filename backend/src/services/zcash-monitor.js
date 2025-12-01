@@ -103,9 +103,27 @@ class ZcashMonitor {
       const bridgeAddress = await zcashService.getBridgeAddress();
 
       for (const tx of transactions) {
-        // Skip if already processed
-        if (this.isTransactionProcessed(tx.txHash)) {
-          continue;
+        // Check database first (database is source of truth)
+        const databaseService = require('./database');
+        let alreadyProcessed = false;
+        
+        if (databaseService.isConnected()) {
+          // Check if transaction was already processed in database
+          // Use isEventProcessed to check if this Zcash transaction was processed
+          alreadyProcessed = await databaseService.isEventProcessed(tx.txHash);
+          
+          if (alreadyProcessed) {
+            // Already processed in database - update cache and skip
+            if (!this.isTransactionProcessed(tx.txHash)) {
+              this.markTransactionProcessed(tx.txHash);
+            }
+            continue;
+          }
+        } else {
+          // Fallback: Use in-memory cache if database not available
+          if (this.isTransactionProcessed(tx.txHash)) {
+            continue;
+          }
         }
 
         // Verify transaction is to bridge address
@@ -115,6 +133,21 @@ class ZcashMonitor {
           const verification = await zcashService.verifyShieldedTransaction(tx.txHash);
           
           if (verification.verified && verification.confirmed) {
+            // Mark as processed in database first (database is source of truth)
+            if (databaseService.isConnected()) {
+              try {
+                await databaseService.markEventProcessed({
+                  eventSignature: tx.txHash,
+                  eventType: 'ZcashDeposit',
+                  solanaAddress: null, // Will be set by handler
+                  amount: null, // Will be extracted by handler
+                });
+              } catch (error) {
+                console.error('Error marking Zcash transaction as processed:', error);
+              }
+            }
+            
+            // Mark as processed in cache
             this.markTransactionProcessed(tx.txHash);
             
             console.log(`New ZEC payment detected: ${tx.txHash}`);

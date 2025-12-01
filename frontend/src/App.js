@@ -4,7 +4,9 @@ import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
 import { clusterApiUrl } from '@solana/web3.js';
+import { BitcoinWalletProvider } from './contexts/BitcoinWalletContext';
 import TabbedInterface from './components/TabbedInterface';
+import ErrorBoundary from './components/ErrorBoundary';
 import './App.css';
 
 // Import wallet adapter CSS
@@ -23,15 +25,19 @@ function App() {
   );
 
   return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
-          <div className="App">
-            <TabbedInterface />
-          </div>
-        </WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+    <ErrorBoundary>
+      <BitcoinWalletProvider>
+      <ConnectionProvider endpoint={endpoint}>
+        <WalletProvider wallets={wallets} autoConnect>
+          <WalletModalProvider>
+            <div className="App">
+              <TabbedInterface />
+            </div>
+          </WalletModalProvider>
+        </WalletProvider>
+      </ConnectionProvider>
+      </BitcoinWalletProvider>
+    </ErrorBoundary>
   );
 }
 

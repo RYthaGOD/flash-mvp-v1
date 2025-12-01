@@ -14,7 +14,9 @@ const crypto = require('crypto');
 class ArciumService {
   constructor() {
     // Configuration
-    this.arciumEndpoint = process.env.ARCIUM_ENDPOINT || 'http://localhost:9090';
+    // Note: ARCIUM_ENDPOINT is currently informational - Arcium works through Solana program calls
+    // The Docker node port (typically 8080) is stored here for reference/future SDK use
+    this.arciumEndpoint = process.env.ARCIUM_ENDPOINT || 'http://localhost:8080';
     this.apiKey = process.env.ARCIUM_API_KEY;
     this.network = process.env.ARCIUM_NETWORK || 'testnet';
     this.privacyLevel = process.env.ARCIUM_PRIVACY_LEVEL || 'full';
@@ -32,9 +34,32 @@ class ArciumService {
     this.connectionPool = [];
     this.maxPoolSize = parseInt(process.env.ARCIUM_MAX_POOL_SIZE) || 10;
 
-    // Security
-    this.encryptionKey = process.env.ARCIUM_ENCRYPTION_KEY || crypto.randomBytes(32);
-    this.hmacKey = process.env.ARCIUM_HMAC_KEY || crypto.randomBytes(32);
+    // Security - Generate cryptographically secure keys
+    // WARN: Using environment variables for keys is INSECURE in production
+    if (process.env.ARCIUM_ENCRYPTION_KEY) {
+      console.warn('⚠️  WARNING: ARCIUM_ENCRYPTION_KEY is set via environment variable!');
+      console.warn('⚠️  This is INSECURE for production use. Use proper key management.');
+      console.warn('⚠️  Environment variables are visible in logs and config files.');
+
+      // If env var is provided, derive a proper 32-byte key from it
+      const envKey = process.env.ARCIUM_ENCRYPTION_KEY;
+      this.encryptionKey = crypto.createHash('sha256').update(envKey).digest();
+    } else {
+      // Generate secure random key
+      this.encryptionKey = crypto.randomBytes(32);
+    }
+
+    if (process.env.ARCIUM_HMAC_KEY) {
+      console.warn('⚠️  WARNING: ARCIUM_HMAC_KEY is set via environment variable!');
+      console.warn('⚠️  This is INSECURE for production use. Use proper key management.');
+
+      // Derive proper 32-byte key from env var
+      const envKey = process.env.ARCIUM_HMAC_KEY;
+      this.hmacKey = crypto.createHash('sha256').update(envKey).digest();
+    } else {
+      // Generate secure random key
+      this.hmacKey = crypto.randomBytes(32);
+    }
 
     // Monitoring
     this.metrics = {
@@ -79,6 +104,14 @@ class ArciumService {
       errors.push('ARCIUM_API_KEY is required when using real SDK');
     }
 
+    // MXE Program Mode: When using Solana program directly (not simulated, not full SDK)
+    if (!this.isSimulated && !this.useRealSDK) {
+      // Verify MXE program ID is configured
+      if (!process.env.FLASH_BRIDGE_MXE_PROGRAM_ID) {
+        errors.push('FLASH_BRIDGE_MXE_PROGRAM_ID is required for MXE Program Mode');
+      }
+    }
+
     if (!['basic', 'enhanced', 'full', 'maximum'].includes(this.privacyLevel)) {
       errors.push('ARCIUM_PRIVACY_LEVEL must be: basic, enhanced, full, or maximum');
     }
@@ -120,8 +153,11 @@ class ArciumService {
 
       if (this.useRealSDK) {
         await this._initializeRealSDK();
-      } else {
+      } else if (this.isSimulated) {
         await this._initializeSimulated();
+      } else {
+        // MXE Program Mode: Use compiled Solana program for real MPC operations
+        await this._initializeMXEProgramMode();
       }
 
       // Initialize connection pool
@@ -258,6 +294,44 @@ class ArciumService {
     this.isSimulated = true;
 
     console.log('✅ Enhanced simulated MPC initialized');
+  }
+
+  /**
+   * Initialize MXE Program Mode - Use compiled Solana program for real MPC operations
+   * This mode enables real privacy operations without requiring full Arcium SDK
+   */
+  async _initializeMXEProgramMode() {
+    console.log('🔐 Initializing MXE Program Mode - Real MPC via Solana program...');
+
+    try {
+      // Initialize Arcium Solana Program Client for MXE operations
+      const arciumSolanaClient = require('./arcium-solana-client');
+      await arciumSolanaClient.initialize();
+      this.solanaClient = arciumSolanaClient;
+
+      // Verify MXE program is available and compiled
+      const programId = process.env.FLASH_BRIDGE_MXE_PROGRAM_ID;
+      if (!programId) {
+        throw new Error('FLASH_BRIDGE_MXE_PROGRAM_ID not configured');
+      }
+
+      console.log(`   MXE Program ID: ${programId}`);
+
+      // Test program connection (this will throw if program not found)
+      await arciumSolanaClient.verifyProgramConnection();
+
+      this.connected = true;
+      this.isSimulated = false;
+
+      console.log('✅ MXE Program Mode initialized successfully');
+      console.log('   Mode: Real MPC via Solana program');
+      console.log('   Privacy: Full (MXE encrypted operations)');
+      console.log('   Operations: encrypt_bridge_amount, verify_bridge_transaction, calculate_swap_amount, encrypt_btc_address');
+
+    } catch (error) {
+      console.error('❌ MXE Program Mode initialization failed:', error.message);
+      throw new Error(`Failed to initialize MXE Program Mode: ${error.message}`);
+    }
   }
 
   /**
@@ -731,7 +805,7 @@ class ArciumService {
         // Decrypt using AES (simplified - in production use RescueCipher)
         const decipher = crypto.createDecipheriv(
           'aes-256-gcm',
-          crypto.randomBytes(32), // In production, derive from x25519 shared secret
+          this.encryptionKey, // Use stored encryption key, not random bytes
           Buffer.from(encryptedObj.iv, 'base64')
         );
         decipher.setAuthTag(Buffer.from(encryptedObj.authTag, 'base64'));

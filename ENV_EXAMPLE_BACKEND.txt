@@ -1,0 +1,191 @@
+# ============================================================================
+# FLASH Bridge Backend - Environment Configuration for Arcium Testnet
+# ============================================================================
+# Copy this file to .env and update with your actual values
+# File: backend/.env.example
+# NEVER commit .env to version control!
+
+# ============================================================================
+# SERVER CONFIGURATION
+# ============================================================================
+PORT=3001
+NODE_ENV=development
+
+# ============================================================================
+# SOLANA CONFIGURATION
+# ============================================================================
+# Solana Network: devnet, testnet, mainnet-beta
+SOLANA_NETWORK=devnet
+SOLANA_RPC_URL=https://api.devnet.solana.com
+
+# Flash Bridge MXE Program ID (REQUIRED for Arcium testnet)
+# This is your deployed flash-bridge-mxe program ID on Arcium testnet
+FLASH_BRIDGE_MXE_PROGRAM_ID=YOUR_FLASH_BRIDGE_MXE_PROGRAM_ID_HERE
+
+# Legacy PROGRAM_ID (fallback, will use FLASH_BRIDGE_MXE_PROGRAM_ID if not set)
+PROGRAM_ID=
+
+# ============================================================================
+# NATIVE ZEC CONFIGURATION (RECOMMENDED)
+# ============================================================================
+# Use native ZEC token instead of custom zenZEC minting
+USE_NATIVE_ZEC=true
+
+# Official native ZEC mint address on Solana
+NATIVE_ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS
+# Alternative alias:
+ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS
+
+# Custom zenZEC token (only used if USE_NATIVE_ZEC=false)
+# ZENZEC_MINT=YourZenZECMintAddressHere
+
+# ============================================================================
+# RELAYER CONFIGURATION
+# ============================================================================
+# ⚠️  WARNING: Relayer services are DISABLED with flash_bridge_mxe program
+# The flash_bridge_mxe program does not support burn/swap operations
+# ENABLE_RELAYER is kept for compatibility but will not start the service
+ENABLE_RELAYER=false
+ENABLE_BTC_RELAYER=false
+
+# Relayer keypair path (ignored - relayer is disabled)
+# Path to your Solana keypair file for the treasury/relayer wallet
+# RELAYER_KEYPAIR_PATH=./relayer-keypair-new.json
+
+# ============================================================================
+# ARCIUM MPC CONFIGURATION - DOCKER NODE
+# ============================================================================
+# Enable Arcium MPC for privacy-preserving operations
+ENABLE_ARCIUM_MPC=true
+
+# Use simulated MPC (true for testnet/dev, false for production with real MPC)
+# Set to false when using your own Docker node
+ARCIUM_SIMULATED=false
+
+# Use real Arcium SDK (required when using Docker node)
+ARCIUM_USE_REAL_SDK=true
+
+# Arcium Node Endpoint - Your Docker node endpoint
+# Default Docker node port is 8080 (check your docker run -p port mapping)
+# If your Docker node is mapped to different port, update accordingly
+ARCIUM_ENDPOINT=http://localhost:8080
+
+# Arcium Network
+ARCIUM_NETWORK=testnet
+
+# Arcium Cluster and Node Configuration (from your node setup)
+ARCIUM_CLUSTER_ID=your_cluster_id_here
+ARCIUM_NODE_OFFSET=your_node_offset_here
+
+# Arcium API Configuration (may be optional for local Docker node)
+# ARCIUM_API_KEY=your_api_key_here
+
+# Arcium Cluster and MXE IDs
+# ARCIUM_MXE_ID=flash_bridge_privacy
+# ARCIUM_PROGRAM_ID=your_arcium_program_id
+
+# Arcium Configuration (auto-generated if not set)
+# ARCIUM_ENCRYPTION_KEY=  # 32-byte key (auto-generated)
+# ARCIUM_HMAC_KEY=        # 32-byte key (auto-generated)
+# ARCIUM_COMPUTATION_TIMEOUT=30000
+# ARCIUM_MAX_RETRIES=3
+# ARCIUM_CACHE_TTL=300000
+# ARCIUM_MAX_POOL_SIZE=10
+# ARCIUM_PRIVACY_LEVEL=full
+
+# ============================================================================
+# DATABASE CONFIGURATION
+# ============================================================================
+# PostgreSQL Configuration (Recommended)
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=flash_bridge
+DB_USER=postgres
+DB_PASSWORD=your_database_password_here
+
+# Alternative: SQLite (if PostgreSQL not available)
+# DATABASE_PATH=./database/flash-bridge.db
+
+# ============================================================================
+# BITCOIN CONFIGURATION (TESTNET)
+# ============================================================================
+BITCOIN_NETWORK=testnet
+BITCOIN_EXPLORER_URL=https://blockstream.info/testnet/api
+BITCOIN_BRIDGE_ADDRESS=tb1qyour_bitcoin_testnet_address_here
+BITCOIN_REQUIRED_CONFIRMATIONS=1
+BOOTSTRAP_BTC=0.01
+ENABLE_BITCOIN_MONITORING=false
+
+# ============================================================================
+# ZCASH CONFIGURATION (TESTNET)
+# ============================================================================
+ZCASH_NETWORK=testnet
+ZCASH_EXPLORER_URL=https://lightwalletd.testnet.z.cash
+ZCASH_BRIDGE_ADDRESS=ztestsapling1your_zcash_testnet_address_here
+ZCASH_LIGHTWALLETD_URL=https://lightwalletd.testnet.z.cash
+USE_ZECWALLET_CLI=false
+
+# ============================================================================
+# EXCHANGE & PRICING CONFIGURATION
+# ============================================================================
+EXCHANGE_PROVIDER=coingecko
+USE_EXCHANGE=false
+# EXCHANGE_API_KEY=your_exchange_api_key
+# EXCHANGE_API_SECRET=your_exchange_api_secret
+
+# Exchange Rates (used if USE_EXCHANGE=false)
+# ZENZEC_TO_SOL_RATE=100
+# SOL_TO_ZENZEC_RATE=0.01
+# ZENZEC_TO_BTC_RATE=0.0001
+
+# ============================================================================
+# JUPITER SWAP CONFIGURATION
+# ============================================================================
+# Jupiter API for token swaps
+# JUPITER_API_URL=https://quote-api.jup.ag/v6
+# JUPITER_MIN_DELAY_MS=500
+# JUPITER_MAX_DELAY_MS=2000
+
+# ============================================================================
+# FEATURE FLAGS
+# ============================================================================
+ENABLE_ZENZEC=false
+
+# ============================================================================
+# RESERVE MANAGER CONFIGURATION
+# ============================================================================
+# Reserve cache settings for performance optimization
+RESERVE_CACHE_TTL=30000                    # Cache TTL in milliseconds (30 seconds)
+RESERVE_MAX_CACHE_SIZE=100                 # Maximum cache entries to prevent memory leaks
+RESERVE_CLEANUP_INTERVAL=300000            # Cache cleanup interval in milliseconds (5 minutes)
+
+# ============================================================================
+# BTC RELAYER CONFIGURATION
+# ============================================================================
+# BTC Relayer memory management and performance settings
+BTC_RELAYER_MAX_PENDING=1000               # Maximum pending items before cleanup
+BTC_RELAYER_MAX_EVENTS=10000               # Maximum processed events in cache
+BTC_RELAYER_EVENT_TTL=86400000             # Event TTL in milliseconds (24 hours)
+
+# ============================================================================
+# DATABASE CONFIGURATION (EXTENDED)
+# ============================================================================
+# Database maintenance and cleanup settings
+DB_TRANSACTION_CLEANUP_INTERVAL_MINUTES=10  # How often to clean up stuck transactions
+
+# ============================================================================
+# LOGGING & DEBUGGING
+# ============================================================================
+# LOG_LEVEL=info
+# DEBUG=false
+
+# ============================================================================
+# SECURITY NOTES
+# ============================================================================
+# 1. Never commit this file with real values
+# 2. Use different keys for testnet vs mainnet
+# 3. Store sensitive keys in secure key management (HSM/KMS) for production
+# 4. Rotate keys regularly
+# 5. Use strong passwords for database
+# 6. Enable rate limiting in production
+

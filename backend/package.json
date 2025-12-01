@@ -15,6 +15,8 @@
     "check-db": "node database/check-setup.js",
     "test-arcium": "node test-arcium-integration.js",
     "test-arcium-enhanced": "node test-enhanced-arcium.js",
+    "test-btc-workflow": "node test-btc-workflow.js",
+    "send-sol": "node send-sol-from-treasury.js",
     "setup-postgres": "powershell -ExecutionPolicy Bypass -File setup-postgres.ps1"
   },
   "keywords": [
@@ -31,13 +33,20 @@
     "@solana/spl-token": "^0.4.0",
     "@solana/web3.js": "^1.87.0",
     "axios": "^1.6.0",
+    "bip32": "^4.0.0",
+    "bip39": "^3.1.0",
+    "bitcoinjs-lib": "^6.1.5",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
+    "ecpair": "^2.1.0",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.0.0",
     "node-fetch": "^2.7.0",
     "pg": "^8.11.3",
-    "pg-hstore": "^2.3.4"
+    "pg-hstore": "^2.3.4",
+    "tiny-secp256k1": "^2.2.3"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

@@ -94,7 +94,7 @@ async function testDatabase() {
       solAmount: 0.1,
       zenZECAmount: 10,
       solanaTxSignature: '1'.repeat(88), // Valid Solana signature length
-      direction: 'sol_to_zenzec',
+      direction: 'sol_to_native_zec',
       status: 'confirmed',
       encrypted: false,
       demoMode: true,

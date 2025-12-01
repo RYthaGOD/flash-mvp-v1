@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useConnection } from '@solana/wallet-adapter-react';
 import './TabStyles.css';
 
-function TransactionHistoryTab({ publicKey, connected, connection }) {
+function TransactionHistoryTab({ publicKey, connected }) {
+  const { connection } = useConnection();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -14,23 +16,28 @@ function TransactionHistoryTab({ publicKey, connected, connection }) {
 
     try {
       // Get signatures for the user's address
-      const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 20 });
-      
+      const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 10 });
+
       // Get transaction details
       const txDetails = await Promise.all(
-        signatures.slice(0, 10).map(async (sig) => {
+        signatures.map(async (sig) => {
           try {
             const tx = await connection.getTransaction(sig.signature, {
               commitment: 'confirmed',
               maxSupportedTransactionVersion: 0,
             });
-            
+
             return {
               signature: sig.signature,
               blockTime: sig.blockTime,
               slot: sig.slot,
               err: sig.err,
-              memo: tx?.meta?.logMessages?.find(msg => msg.includes('mint') || msg.includes('burn')) || null,
+              memo: tx?.meta?.logMessages?.find(msg =>
+                msg.includes('mint') ||
+                msg.includes('burn') ||
+                msg.includes('FLASH') ||
+                msg.includes('Bridge')
+              ) || null,
             };
           } catch (err) {
             return {

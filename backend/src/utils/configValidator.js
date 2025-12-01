@@ -21,6 +21,7 @@ class ConfigValidator {
 
     // Optional but recommended
     const recommended = {
+      FLASH_BRIDGE_MXE_PROGRAM_ID: 'Flash Bridge MXE program ID (required for Arcium testnet)',
       SOLANA_RPC_URL: 'Solana RPC endpoint (will use default if not set)',
       RELAYER_KEYPAIR_PATH: 'Relayer keypair path (required for minting/relaying)',
       DB_HOST: 'Database host (database features disabled if not set)',
@@ -71,6 +72,26 @@ class ConfigValidator {
         if (isNaN(rate) || rate <= 0) {
           warnings.push(`Invalid ${varName}: ${process.env[varName]}. Must be a positive number`);
         }
+      }
+    }
+
+    // Check for placeholder values in critical variables
+    if (process.env.FLASH_BRIDGE_MXE_PROGRAM_ID === 'YOUR_FLASH_BRIDGE_MXE_PROGRAM_ID_HERE' || 
+        (process.env.FLASH_BRIDGE_MXE_PROGRAM_ID && process.env.FLASH_BRIDGE_MXE_PROGRAM_ID.includes('YOUR_'))) {
+      errors.push('FLASH_BRIDGE_MXE_PROGRAM_ID contains placeholder value - must be set to actual program ID');
+    }
+
+    // Validate Arcium configuration
+    if (process.env.ENABLE_ARCIUM_MPC === 'true' && process.env.ARCIUM_USE_REAL_SDK === 'true') {
+      if (!process.env.ARCIUM_API_KEY) {
+        warnings.push('ARCIUM_API_KEY not set but ARCIUM_USE_REAL_SDK is true - real SDK will not work');
+      }
+    }
+
+    // Check network consistency for testnet
+    if (process.env.SOLANA_NETWORK && process.env.SOLANA_NETWORK.includes('mainnet')) {
+      if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'production') {
+        warnings.push('Using mainnet Solana network but NODE_ENV is not production - double check configuration!');
       }
     }
 

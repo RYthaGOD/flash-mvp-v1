@@ -51,11 +51,11 @@ if (solanaRpc) {
   warnings++;
 }
 
-const zenzecMint = process.env.ZENZEC_MINT;
+const zenzecMint = process.env.NATIVE_ZEC_MINT;
 if (zenzecMint && zenzecMint !== 'YourZenZECMintAddressHere') {
-  console.log(`   ✅ ZENZEC_MINT configured`);
+  console.log(`   ✅ NATIVE_ZEC_MINT configured`);
 } else {
-  console.log('   ⚠️  ZENZEC_MINT not configured');
+  console.log('   ⚠️  NATIVE_ZEC_MINT not configured');
   console.log('   📍 Demo mode: Will generate mock transactions');
   console.log('   💡 Create mint: npm run create-mint');
   warnings++;

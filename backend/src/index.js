@@ -1,7 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const bodyParser = require('body-parser');
 require('dotenv').config();
+const { createLogger } = require('./utils/logger');
+
+const logger = createLogger('server');
 
 // Enable garbage collection if available (for memory management)
 if (typeof global.gc === 'undefined') {
@@ -9,9 +13,9 @@ if (typeof global.gc === 'undefined') {
     // Attempt to enable garbage collection
     require('v8').setFlagsFromString('--expose-gc');
     global.gc = require('v8').gc;
-    console.log('✅ Garbage collection enabled for memory management');
+    logger.info('✅ Garbage collection enabled for memory management');
   } catch (error) {
-    console.log('ℹ️  Garbage collection not available (run with --expose-gc for better memory management)');
+    logger.info('ℹ️  Garbage collection not available (run with --expose-gc for better memory management)');
   }
 }
 
@@ -22,26 +26,29 @@ const logsDir = path.join(__dirname, '..', 'logs');
 try {
   if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir, { recursive: true });
-    console.log('📁 Created logs directory for crash logging');
+    logger.info('📁 Created logs directory for crash logging');
   }
 } catch (error) {
-  console.warn('⚠️  Could not create logs directory:', error.message);
+  logger.warn('⚠️  Could not create logs directory', { error: error.message });
 }
 
 // Set default testnet environment variables if not configured
 process.env.ENABLE_ARCIUM_MPC = process.env.ENABLE_ARCIUM_MPC || 'true';
-process.env.ARCIUM_SIMULATED = process.env.ARCIUM_SIMULATED || 'true';
+
+// MXE Program Mode Configuration - FIXED for real MPC operations
+// Force these settings to ensure MXE Program Mode works
+process.env.ARCIUM_SIMULATED = 'false'; // Enable real MPC operations
+process.env.ARCIUM_USE_REAL_SDK = 'false'; // Use MXE program directly (not full SDK)
+process.env.FLASH_BRIDGE_MXE_PROGRAM_ID = process.env.FLASH_BRIDGE_MXE_PROGRAM_ID || 'CULoJigMJeVrmXVYPu8D9pdmfjAZnzdAwWvTqWvz1XkP';
 process.env.SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 process.env.SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'devnet';
 // Only set mock PROGRAM_ID if not explicitly disabled
 if (process.env.PROGRAM_ID === undefined) {
-  process.env.PROGRAM_ID = process.env.ENABLE_ZENZEC !== 'false' ? 'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS' : '';
 }
-process.env.ZENZEC_MINT = process.env.ZENZEC_MINT || 'MockZenZecMintAddress11111111111111111111111';
 process.env.DATABASE_PATH = process.env.DATABASE_PATH || './database/flash-bridge.db';
 process.env.BITCOIN_NETWORK = process.env.BITCOIN_NETWORK || 'testnet';
 process.env.BITCOIN_EXPLORER_URL = process.env.BITCOIN_EXPLORER_URL || 'https://blockstream.info/testnet/api';
-process.env.BITCOIN_BRIDGE_ADDRESS = process.env.BITCOIN_BRIDGE_ADDRESS || 'tb1qmockbitcoinaddress1234567890';
+process.env.BITCOIN_BRIDGE_ADDRESS = process.env.BITCOIN_BRIDGE_ADDRESS || 'tb1qug4w70zdr40clj9qecy67tx58e24lk90whzy9l';
 process.env.ZCASH_NETWORK = process.env.ZCASH_NETWORK || 'testnet';
 process.env.ZCASH_EXPLORER_URL = process.env.ZCASH_EXPLORER_URL || 'https://lightwalletd.testnet.z.cash';
 process.env.ZCASH_BRIDGE_ADDRESS = process.env.ZCASH_BRIDGE_ADDRESS || 'zs1mockzcashaddress1234567890';
@@ -49,6 +56,26 @@ process.env.ENABLE_RELAYER = process.env.ENABLE_RELAYER || 'false';
 process.env.ENABLE_BTC_RELAYER = process.env.ENABLE_BTC_RELAYER || 'false';
 process.env.PORT = process.env.PORT || '3001';
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN;
+const REQUIRED_ENVS = [
+  'FRONTEND_ORIGIN',
+  'BITCOIN_BRIDGE_ADDRESS',
+  'ADMIN_API_KEY',
+];
+
+const missingRequired = REQUIRED_ENVS.filter(
+  (key) => !process.env[key] || process.env[key].trim() === ''
+);
+
+if (missingRequired.length > 0) {
+  logger.error('❌ Missing required environment variables', { missingRequired });
+  logger.error(
+    'Set these in backend/.env before starting the server. See README: Environment Configuration.'
+  );
+  throw new Error(
+    `Missing required environment variables: ${missingRequired.join(', ')}`
+  );
+}
 
 // =============================================================================
 // CRASH PREVENTION & ERROR HANDLING
@@ -56,9 +83,10 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Global uncaught exception handler
 process.on('uncaughtException', (error) => {
-  console.error('🚨 CRITICAL: Uncaught Exception - System would crash!');
-  console.error('Error:', error.message);
-  console.error('Stack:', error.stack);
+  logger.error('🚨 CRITICAL: Uncaught Exception - System would crash!', {
+    error: error.message,
+    stack: error.stack,
+  });
 
   // Log to file if possible
   try {
@@ -72,22 +100,23 @@ process.on('uncaughtException', (error) => {
     };
     fs.appendFileSync('./logs/crash.log', JSON.stringify(logEntry) + '\n');
   } catch (logError) {
-    console.error('Failed to write crash log:', logError.message);
+    logger.error('Failed to write crash log', { error: logError.message });
   }
 
   // Graceful shutdown instead of immediate crash
-  console.log('🔄 Attempting graceful shutdown...');
+  logger.info('🔄 Attempting graceful shutdown after uncaught exception');
   setTimeout(() => {
-    console.error('❌ Force shutdown due to uncaught exception');
+    logger.error('❌ Force shutdown due to uncaught exception');
     process.exit(1);
   }, 1000);
 });
 
 // Global unhandled rejection handler
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('🚨 CRITICAL: Unhandled Promise Rejection - System would crash!');
-  console.error('Reason:', reason);
-  console.error('Promise:', promise);
+  logger.error('🚨 CRITICAL: Unhandled Promise Rejection - System would crash!', {
+    reason,
+    promise,
+  });
 
   // Log to file if possible
   try {
@@ -100,25 +129,28 @@ process.on('unhandledRejection', (reason, promise) => {
     };
     fs.appendFileSync('./logs/crash.log', JSON.stringify(logEntry) + '\n');
   } catch (logError) {
-    console.error('Failed to write crash log:', logError.message);
+    logger.error('Failed to write crash log', { error: logError.message });
   }
 
   // Don't crash, just log and continue
-  console.log('✅ Unhandled rejection logged, continuing operation...');
+  logger.info('✅ Unhandled rejection logged, continuing operation');
 });
 
 // Graceful shutdown handlers
 process.on('SIGTERM', () => {
-  console.log('📴 SIGTERM received - Graceful shutdown initiated');
+  logger.info('📴 SIGTERM received - Graceful shutdown initiated');
   gracefulShutdown('SIGTERM');
 });
 
 process.on('SIGINT', () => {
-  console.log('📴 SIGINT received - Graceful shutdown initiated');
+  logger.info('📴 SIGINT received - Graceful shutdown initiated');
   gracefulShutdown('SIGINT');
 });
 
 // Memory monitoring and management
+let lastGCTime = 0;
+const GC_COOLDOWN = 5 * 60 * 1000; // 5 minutes cooldown between forced GC
+
 const memoryMonitor = () => {
   const memUsage = process.memoryUsage();
   const memUsageMB = {
@@ -128,79 +160,77 @@ const memoryMonitor = () => {
     external: Math.round(memUsage.external / 1024 / 1024)
   };
 
-  // Critical memory threshold (500MB)
-  if (memUsageMB.heapUsed > 500) {
-    console.error('🚨 CRITICAL: Memory usage extremely high!', memUsageMB);
-    console.error('🔄 Forcing garbage collection and cleanup...');
+  const now = Date.now();
 
-    // Force garbage collection
-    if (global.gc) {
+  // Critical memory threshold (500MB) - EMERGENCY ACTION
+  if (memUsageMB.heapUsed > 500) {
+    logger.error('🚨 CRITICAL: Memory usage extremely high', { memUsageMB });
+    logger.error('🔄 Emergency cleanup initiated...');
+
+    // Force garbage collection (with cooldown to prevent loops)
+    if (global.gc && (now - lastGCTime) > GC_COOLDOWN) {
       global.gc();
-      console.log('🗑️  Emergency garbage collection completed');
+      lastGCTime = now;
+      logger.info('🗑️  Emergency garbage collection completed');
+    } else if (!global.gc) {
+      logger.warn('⚠️  Garbage collection not available, cannot clean up memory');
     }
 
-    // Clear caches if available
-    if (cryptoProofsService && cryptoProofsService.proofCache) {
+    // Clear caches if available (only in extreme cases)
+    if (cryptoProofsService && cryptoProofsService.proofCache && memUsageMB.heapUsed > 600) {
       const cacheSize = cryptoProofsService.proofCache.size;
       cryptoProofsService.proofCache.clear();
-      console.log(`🧹 Cleared ${cacheSize} cached proofs`);
+      logger.info(`🧹 Cleared ${cacheSize} cached proofs due to extreme memory pressure`);
     }
 
-    // Check memory again after cleanup
-    setTimeout(() => {
-      const afterCleanup = process.memoryUsage();
-      const afterMB = Math.round(afterCleanup.heapUsed / 1024 / 1024);
-      if (afterMB > 400) {
-        console.warn('⚠️  Memory still high after cleanup:', afterMB, 'MB');
-      } else {
-        console.log('✅ Memory usage normalized:', afterMB, 'MB');
-      }
-    }, 1000);
+    // Log warning but don't re-check immediately to prevent loops
+    logger.error('⚠️  Memory usage critical - manual intervention may be required');
 
-  // High memory warning (300MB)
+  // High memory warning (300MB) - CONSERVATIVE ACTION
   } else if (memUsageMB.heapUsed > 300) {
-    console.warn('⚠️  High memory usage detected:', memUsageMB);
+    logger.warn('⚠️  High memory usage detected', { memUsageMB });
 
-    // Force garbage collection if available
-    if (global.gc) {
-      console.log('🗑️  Running garbage collection...');
+    // Only force GC if we haven't done it recently (prevent loops)
+    if (global.gc && (now - lastGCTime) > GC_COOLDOWN) {
+      logger.info('🗑️  Running conservative garbage collection...');
       global.gc();
+      lastGCTime = now;
     }
 
-  // Normal memory logging (200MB)
+  // Normal memory logging (200MB) - MONITORING ONLY
   } else if (memUsageMB.heapUsed > 200) {
-    console.log('📊 Memory usage:', memUsageMB);
+    logger.info('📊 Memory usage', { memUsageMB });
   }
 
-  // Periodic detailed logging (every 10 minutes)
+  // Periodic detailed logging (every 10 minutes) - INFO ONLY
   if (Math.random() < 0.0033) { // ~1 in 300 calls, ~10 minutes at 2min intervals
-    console.log('📈 Detailed memory report:', memUsageMB);
+    logger.info('📈 Detailed memory report', { memUsageMB });
   }
 };
 
 // Start memory monitoring
 setInterval(memoryMonitor, 120000); // Check every 2 minutes
-console.log('🧠 Memory monitoring enabled');
+logger.info('🧠 Memory monitoring enabled');
 
 // Graceful shutdown function
 async function gracefulShutdown(signal) {
-  console.log(`🔄 Starting graceful shutdown (${signal})...`);
+  logger.info(`🔄 Starting graceful shutdown (${signal})...`);
 
   try {
     // Close database connections
     if (databaseService && databaseService.isConnected()) {
-      console.log('💾 Closing database connections...');
+      logger.info('💾 Closing database connections...');
       await databaseService.close();
     }
 
     // Close any active connections
-    console.log('🔌 Closing active connections...');
+    logger.info('🔌 Closing active connections...');
     // Add any additional cleanup here
 
-    console.log('✅ Graceful shutdown completed');
+    logger.info('✅ Graceful shutdown completed');
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error during graceful shutdown:', error);
+    logger.error('❌ Error during graceful shutdown', { error });
     process.exit(1);
   }
 }
@@ -218,20 +248,45 @@ const btcRelayer = require('./services/btc-relayer');
 const btcDepositHandler = require('./services/btc-deposit-handler');
 const configValidator = require('./utils/config-validator');
 const databaseService = require('./services/database');
+const reserveManager = require('./services/reserveManager');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const ConfigValidator = require('./utils/configValidator');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors());
-app.use(bodyParser.json());
+// Security middleware
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'same-site' },
+  })
+);
+
+const allowedOrigins = FRONTEND_ORIGIN.split(',').map((origin) => origin.trim());
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      logger.warn('Blocked request from disallowed origin', { origin });
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
+
+app.use(bodyParser.json({ limit: '1mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Request logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+  logger.info('HTTP request received', {
+    method: req.method,
+    path: req.path,
+    origin: req.get('origin'),
+    ip: req.ip,
+  });
   next();
 });
 
@@ -239,7 +294,7 @@ app.use((req, res, next) => {
 app.get('/', (req, res) => {
   res.json({
     message: 'FLASH — BTC → ZEC (shielded) → Solana Bridge',
-    description: 'Backend API for zenZEC minting and SOL swap relayer',
+    description: 'Backend API for native ZEC minting and SOL swap relayer',
     version: '1.0.0',
     status: 'running',
     endpoints: {
@@ -264,7 +319,7 @@ app.get('/health', async (req, res) => {
   const zcashMonitorStatus = zcashMonitor.getStatus();
   const btcRelayerStatus = btcRelayer.getStatus();
   const configStatus = configValidator.getSummary();
-  
+
   const health = {
     status: 'ok',
     relayerActive: relayerService.isListening,
@@ -279,17 +334,21 @@ app.get('/health', async (req, res) => {
     configuration: configStatus,
     timestamp: new Date().toISOString(),
   };
-  
+
   // If database is connected, add statistics
   if (databaseService.isConnected()) {
     try {
       const stats = await databaseService.getStatistics();
       health.databaseStats = stats;
+
+      // Add centralized reserve information
+      const reserveSummary = await reserveManager.getReserveSummary();
+      health.reserves = reserveSummary;
     } catch (error) {
-      console.error('Error fetching database stats:', error);
+      logger.error('Error fetching database stats or reserves', { error });
     }
   }
-  
+
   res.json(health);
 });
 
@@ -305,124 +364,121 @@ app.use(errorHandler);
 
 // Start server
 app.listen(PORT, async () => {
-  console.log('='.repeat(60));
-  console.log('FLASH — BTC → USDC Treasury → Token Bridge (MVP)');
-  console.log('='.repeat(60));
+  logger.info('='.repeat(60));
+  logger.info('FLASH — BTC → USDC Treasury → Token Bridge (MVP)');
+  logger.info('='.repeat(60));
   
   // Validate configuration
-  console.log('Validating configuration...');
+  logger.info('Validating configuration...');
   const configValidation = ConfigValidator.validate(false); // Non-strict for MVP
   ConfigValidator.logResults(configValidation);
   
   if (!configValidation.valid) {
-    console.error('⚠️  Configuration errors detected. Some features may not work correctly.');
+    logger.error('⚠️  Configuration errors detected. Some features may not work correctly.');
   }
   
-  console.log('='.repeat(60));
-  console.log(`Backend server running on port ${PORT}`);
-  console.log(`Solana Network: ${process.env.SOLANA_NETWORK || 'devnet'}`);
-  console.log(`Program ID: ${process.env.PROGRAM_ID || 'Not configured (optional for BTC deposit flow)'}`);
-  console.log(`Treasury: Using USDC treasury + Jupiter swaps (no zenZEC mint needed)`);
-  console.log(`Zcash Network: ${process.env.ZCASH_NETWORK || 'mainnet'}`);
+  logger.info('='.repeat(60));
+  logger.info(`Backend server running on port ${PORT}`);
+  logger.info(`Solana Network: ${process.env.SOLANA_NETWORK || 'devnet'}`);
+  logger.info(`Program ID: ${process.env.PROGRAM_ID || 'Not configured (optional for BTC deposit flow)'}`);
+  logger.info('Treasury: Using USDC treasury + Jupiter swaps (no native ZEC mint needed)');
+  logger.info(`Zcash Network: ${process.env.ZCASH_NETWORK || 'mainnet'}`);
   if (process.env.USE_ZECWALLET_CLI === 'true') {
-    console.log('Zcash Wallet: Enabled (zecwallet-light-cli)');
+    logger.info('Zcash Wallet: Enabled (zecwallet-light-cli)');
     try {
       const zcashWallet = require('./services/zcash-wallet');
       await zcashWallet.initializeWallet();
       const bridgeAddress = await zcashWallet.getBridgeAddress();
-      console.log(`Zcash Bridge Address: ${bridgeAddress} (from wallet)`);
+      logger.info(`Zcash Bridge Address: ${bridgeAddress} (from wallet)`);
       const balance = await zcashWallet.getBalance();
-      console.log(`Zcash Balance: ${balance.total} ZEC (${balance.confirmed} confirmed)`);
+      logger.info(`Zcash Balance: ${balance.total} ZEC (${balance.confirmed} confirmed)`);
     } catch (error) {
-      console.warn(`Zcash Wallet: Initialization failed - ${error.message}`);
-      console.warn('Falling back to manual address configuration');
+      logger.warn('Zcash Wallet: Initialization failed', { error: error.message });
+      logger.warn('Falling back to manual address configuration');
     }
   } else {
-    console.log(`Zcash Bridge: ${process.env.ZCASH_BRIDGE_ADDRESS ? 'Configured' : 'Not configured'}`);
-    console.log('Zcash Wallet: Disabled (set USE_ZECWALLET_CLI=true to enable)');
+    logger.info(`Zcash Bridge: ${process.env.ZCASH_BRIDGE_ADDRESS ? 'Configured' : 'Not configured'}`);
+    logger.info('Zcash Wallet: Disabled (set USE_ZECWALLET_CLI=true to enable)');
   }
-  console.log(`Bitcoin Network: ${process.env.BITCOIN_NETWORK || 'mainnet'}`);
-  console.log(`Bitcoin Bridge: ${process.env.BITCOIN_BRIDGE_ADDRESS ? 'Configured' : 'Not configured'}`);
-  console.log('='.repeat(60));
+  logger.info(`Bitcoin Network: ${process.env.BITCOIN_NETWORK || 'mainnet'}`);
+  logger.info(`Bitcoin Bridge: ${process.env.BITCOIN_BRIDGE_ADDRESS ? 'Configured' : 'Not configured'}`);
+  logger.info('='.repeat(60));
   
   // Initialize Database
-  console.log('Initializing database...');
+  logger.info('Initializing database...');
   try {
     const dbConnected = await databaseService.initialize();
     if (dbConnected) {
-      console.log('Database: Connected');
+      logger.info('Database: Connected');
     } else {
-      console.warn('Database: Connection failed - transactions will not be persisted');
-      console.warn('Set DB_HOST, DB_NAME, DB_USER, DB_PASSWORD in .env to enable database');
+      logger.warn('Database: Connection failed - transactions will not be persisted');
+      logger.warn('Set DB_HOST, DB_NAME, DB_USER, DB_PASSWORD in .env to enable database');
     }
   } catch (error) {
-    console.error('Database initialization error:', error.message);
-    console.warn('Continuing without database - transactions will not be persisted');
+    logger.error('Database initialization error', { error: error.message });
+    logger.warn('Continuing without database - transactions will not be persisted');
   }
-  console.log('='.repeat(60));
+  logger.info('='.repeat(60));
   
   // Validate Configuration
   const validation = configValidator.validate();
   configValidator.printResults();
   
   if (!validation.valid) {
-    console.error('\n❌ Cannot start with invalid configuration');
-    console.error('ℹ️  See ENV_SETUP.md or QUICK_START.md for help\n');
+    logger.error('❌ Cannot start with invalid configuration');
+    logger.error('ℹ️  See ENV_SETUP.md or QUICK_START.md for help');
     process.exit(1);
   }
   
   // Initialize Arcium MPC - REQUIRED for complete privacy
-  console.log('🔒 Initializing Arcium MPC Privacy Layer...');
-    try {
-      await arciumService.initialize();
-      const arciumStatus = arciumService.getStatus();
-    
+  logger.info('🔒 Initializing Arcium MPC Privacy Layer...');
+  try {
+    await arciumService.initialize();
+    const arciumStatus = arciumService.getStatus();
+
     if (!arciumStatus.enabled || !arciumStatus.connected) {
-      console.error('❌ CRITICAL: Arcium MPC is not available - cannot start without privacy');
-      console.error('');
-      console.error('📝 Quick Fix:');
-      console.error('   1. Create .env file in backend/ directory');
-      console.error('   2. Add: ENABLE_ARCIUM_MPC=true');
-      console.error('   3. Restart the server');
-      console.error('');
-      console.error('ℹ️  For MVP: This enables simulated privacy (no real Arcium network needed)');
-      console.error('ℹ️  See ENV_SETUP.md for complete configuration guide');
+      logger.error('❌ CRITICAL: Arcium MPC is not available - cannot start without privacy');
+      logger.error('📝 Quick Fix: add ENABLE_ARCIUM_MPC=true to backend/.env and restart');
+      logger.error('ℹ️  For MVP: This enables simulated privacy (no real Arcium network needed)');
+      logger.error('ℹ️  See ENV_SETUP.md for complete configuration guide');
       process.exit(1);
     }
-    
-    console.log('✅ Privacy Mode: FULL');
-    console.log(`   Mode: ${arciumStatus.mode}`);
-    console.log(`   - Encrypted amounts: ${arciumStatus.features.encryptedAmounts ? '✓' : '✗'}`);
-    console.log(`   - Private verification: ${arciumStatus.features.privateVerification ? '✓' : '✗'}`);
-    console.log(`   - Trustless randomness: ${arciumStatus.features.trustlessRandom ? '✓' : '✗'}`);
-    console.log(`   - Encrypted addresses: ${arciumStatus.features.encryptedAddresses ? '✓' : '✗'}`);
-    } catch (error) {
-    console.error('❌ FATAL: Failed to initialize Arcium MPC');
-    console.error('');
-    console.error(error.message);
-    console.error('');
-    console.error('ℹ️  See ENV_SETUP.md for configuration help');
+
+    logger.info('✅ Privacy Mode: FULL');
+    logger.info(`   Mode: ${arciumStatus.mode}`);
+    logger.info(`   - Encrypted amounts: ${arciumStatus.features.encryptedAmounts ? '✓' : '✗'}`);
+    logger.info(`   - Private verification: ${arciumStatus.features.privateVerification ? '✓' : '✗'}`);
+    logger.info(`   - Trustless randomness: ${arciumStatus.features.trustlessRandom ? '✓' : '✗'}`);
+    logger.info(`   - Encrypted addresses: ${arciumStatus.features.encryptedAddresses ? '✓' : '✗'}`);
+  } catch (error) {
+    logger.error('❌ FATAL: Failed to initialize Arcium MPC');
+    logger.error(error.message);
+    logger.error('ℹ️  See ENV_SETUP.md for configuration help');
     process.exit(1);
   }
   
-  console.log('='.repeat(60));
+  logger.info('='.repeat(60));
 
   // Initialize Bitcoin service
-  console.log('Initializing Bitcoin service...');
+  logger.info('Initializing Bitcoin service...');
   try {
     await bitcoinService.initialize();
     const bitcoinInfo = bitcoinService.getNetworkInfo();
-    console.log(`Bitcoin Bridge Address: ${bitcoinInfo.bridgeAddress || 'Not configured'}`);
-    console.log(`Bitcoin Reserve: ${bitcoinInfo.currentReserveBTC} BTC`);
+    logger.info(`Bitcoin Bridge Address: ${bitcoinInfo.bridgeAddress || 'Not configured'}`);
+    logger.info(`Bitcoin Reserve: ${bitcoinInfo.currentReserveBTC} BTC`);
     
-    // Start Bitcoin monitoring if enabled
+    // Start Bitcoin monitoring (enabled by default for demo)
+    process.env.ENABLE_BITCOIN_MONITORING = process.env.ENABLE_BITCOIN_MONITORING || 'true';
+// For demo purposes, allow instant confirmations
+process.env.BITCOIN_REQUIRED_CONFIRMATIONS = process.env.BITCOIN_REQUIRED_CONFIRMATIONS || '0';
     if (process.env.ENABLE_BITCOIN_MONITORING === 'true' && bitcoinInfo.bridgeAddress) {
-      console.log('Starting Bitcoin monitoring...');
+      logger.info('Starting Bitcoin monitoring...');
       await bitcoinService.startMonitoring(async (payment) => {
-        console.log(`\n🔔 New Bitcoin payment detected:`);
-        console.log(`   Amount: ${payment.amount / 100000000} BTC`);
-        console.log(`   Transaction: ${payment.txHash}`);
-        console.log(`   Confirmations: ${payment.confirmations}`);
+        logger.info('🔔 New Bitcoin payment detected', {
+          amountBTC: payment.amount / 100000000,
+          txHash: payment.txHash,
+          confirmations: payment.confirmations,
+        });
         
         // Get user's Solana address from payment metadata or API
         // For demo: User provides address via API endpoint
@@ -430,69 +486,70 @@ app.listen(PORT, async () => {
         
         // Note: User must call API endpoint with their Solana address
         // The monitoring just detects the BTC deposit
-        console.log(`   ⚠️  User must call /api/bridge/btc-deposit with their Solana address`);
+        logger.warn('User must call /api/bridge/btc-deposit with their Solana address');
       });
-      console.log('Bitcoin monitoring started successfully');
-      console.log('   Users can claim deposits via POST /api/bridge/btc-deposit');
+      logger.info('Bitcoin monitoring started successfully');
+      logger.info('Users can claim deposits via POST /api/bridge/btc-deposit');
     } else {
-      console.log('Bitcoin monitoring disabled (set ENABLE_BITCOIN_MONITORING=true to enable)');
+      logger.info('Bitcoin monitoring disabled (set ENABLE_BITCOIN_MONITORING=true to enable)');
     }
 
     // Start Zcash monitoring if wallet is enabled
     if (process.env.USE_ZECWALLET_CLI === 'true' && process.env.ENABLE_ZCASH_MONITORING === 'true') {
-      console.log('Starting Zcash transaction monitoring...');
+      logger.info('Starting Zcash transaction monitoring...');
       try {
         await zcashMonitor.startMonitoring(async (payment) => {
-          console.log(`New Zcash payment detected: ${payment.txHash}`);
-          console.log(`Bridge address: ${payment.bridgeAddress}`);
-          // In production, this would trigger zenZEC minting automatically
+          logger.info('New Zcash payment detected', {
+            txHash: payment.txHash,
+            bridgeAddress: payment.bridgeAddress,
+          });
+          // In production, this would trigger native ZEC minting automatically
           // Example: await bridgeService.autoMint(payment);
         });
-        console.log('Zcash monitoring started successfully');
+        logger.info('Zcash monitoring started successfully');
       } catch (error) {
-        console.error('Failed to start Zcash monitoring:', error.message);
+        logger.error('Failed to start Zcash monitoring', { error: error.message });
       }
     } else if (process.env.USE_ZECWALLET_CLI === 'true') {
-      console.log('Zcash monitoring disabled (set ENABLE_ZCASH_MONITORING=true to enable)');
+      logger.info('Zcash monitoring disabled (set ENABLE_ZCASH_MONITORING=true to enable)');
     }
   } catch (error) {
-    console.error('Failed to initialize Bitcoin service:', error.message);
+    logger.error('Failed to initialize Bitcoin service', { error: error.message });
   }
   
-  console.log('='.repeat(60));
+  logger.info('='.repeat(60));
 
   // Start relayer listener if enabled
   if (process.env.ENABLE_RELAYER === 'true') {
-    console.log('Starting SOL relayer service...');
-    try {
-      await relayerService.startListening();
-      console.log('SOL relayer service started successfully');
-    } catch (error) {
-      console.error('Failed to start SOL relayer:', error.message);
-    }
+    logger.warn('🚫 WARNING: SOL relayer service is DISABLED');
+    logger.warn('Reason: flash_bridge_mxe program does not support burn/swap operations');
+    logger.warn('The relayer expects BurnSwapEvent which does not exist in this program');
+    logger.warn('Keeping ENABLE_RELAYER=true for compatibility, but service will not start');
+    logger.info('SOL relayer service kept disabled (incompatible with flash_bridge_mxe)');
   } else {
-    console.log('SOL relayer disabled (set ENABLE_RELAYER=true to enable)');
+    logger.info('SOL relayer disabled (set ENABLE_RELAYER=true to enable)');
+    logger.warn('flash_bridge_mxe program does not support burn/swap operations');
   }
 
   // Start BTC relayer listener if enabled
   if (process.env.ENABLE_BTC_RELAYER === 'true') {
-    console.log('Starting BTC relayer service...');
+    logger.info('Starting BTC relayer service...');
     try {
       await btcRelayer.startListening();
-      console.log('BTC relayer service started successfully');
+      logger.info('BTC relayer service started successfully');
     } catch (error) {
-      console.error('Failed to start BTC relayer:', error.message);
+      logger.error('Failed to start BTC relayer', { error: error.message });
     }
   } else {
-    console.log('BTC relayer disabled (set ENABLE_BTC_RELAYER=true to enable)');
+    logger.info('BTC relayer disabled (set ENABLE_BTC_RELAYER=true to enable)');
   }
   
-  console.log('='.repeat(60));
+  logger.info('='.repeat(60));
 });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\nShutting down gracefully...');
+  logger.info('Shutting down gracefully (SIGINT handler)');
   bitcoinService.stopMonitoring();
   relayerService.stopListening();
   btcRelayer.stopListening();

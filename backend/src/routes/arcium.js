@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const arciumService = require('../services/arcium');
+const { requireClientSignature } = require('../middleware/clientAuth');
 
 /**
  * Get Arcium MPC network status
@@ -22,7 +23,7 @@ router.get('/status', (req, res) => {
  * Encrypt an amount using MPC
  * POST body: { amount, recipientPubkey }
  */
-router.post('/encrypt-amount', async (req, res) => {
+router.post('/encrypt-amount', requireClientSignature, async (req, res) => {
   try {
     const { amount, recipientPubkey } = req.body;
 
@@ -51,7 +52,7 @@ router.post('/encrypt-amount', async (req, res) => {
  * Generate trustless random number
  * POST body: { max }
  */
-router.post('/random', async (req, res) => {
+router.post('/random', requireClientSignature, async (req, res) => {
   try {
     const { max } = req.body;
 
@@ -102,7 +103,7 @@ router.get('/computation/:computationId', (req, res) => {
  * Create private bridge transaction
  * POST body: { solanaAddress, amount, swapToSol, useEncryption }
  */
-router.post('/bridge/private', async (req, res) => {
+router.post('/bridge/private', requireClientSignature, async (req, res) => {
   try {
     const { solanaAddress, amount, swapToSol, useEncryption } = req.body;
 
@@ -145,7 +146,7 @@ router.post('/bridge/private', async (req, res) => {
  * Calculate encrypted swap amount
  * POST body: { encryptedZenZEC, exchangeRate }
  */
-router.post('/calculate-swap', async (req, res) => {
+router.post('/calculate-swap', requireClientSignature, async (req, res) => {
   try {
     const { encryptedZenZEC, exchangeRate } = req.body;
 
@@ -177,7 +178,7 @@ router.post('/calculate-swap', async (req, res) => {
  * Private Zcash transaction verification
  * POST body: { txHash, encryptedExpectedAmount }
  */
-router.post('/verify-zcash-private', async (req, res) => {
+router.post('/verify-zcash-private', requireClientSignature, async (req, res) => {
   try {
     const { txHash, encryptedExpectedAmount } = req.body;
 
@@ -210,7 +211,7 @@ router.post('/verify-zcash-private', async (req, res) => {
  * Select relayer confidentially
  * POST body: { relayerAddresses }
  */
-router.post('/select-relayer', async (req, res) => {
+router.post('/select-relayer', requireClientSignature, async (req, res) => {
   try {
     const { relayerAddresses } = req.body;
 
@@ -240,7 +241,7 @@ router.post('/select-relayer', async (req, res) => {
  * Encrypt BTC address for privacy
  * POST body: { btcAddress, recipientPubkey }
  */
-router.post('/encrypt-btc-address', async (req, res) => {
+router.post('/encrypt-btc-address', requireClientSignature, async (req, res) => {
   try {
     const { btcAddress, recipientPubkey } = req.body;
 
@@ -278,7 +279,7 @@ router.post('/encrypt-btc-address', async (req, res) => {
  * Decrypt BTC address (for relayer use)
  * POST body: { encryptedAddress, recipientPubkey }
  */
-router.post('/decrypt-btc-address', async (req, res) => {
+router.post('/decrypt-btc-address', requireClientSignature, async (req, res) => {
   try {
     const { encryptedAddress, recipientPubkey } = req.body;
 

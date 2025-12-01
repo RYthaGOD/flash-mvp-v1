@@ -1,10 +1,9 @@
 # Environment Variables (CRITICAL - Contains secrets)
-.env
-.env.local
-.env.*.local
-backend/.env
-frontend/.env
-**/.env
+.env*
+*.env*
+backend/.env*
+frontend/.env*
+**/.env*
 
 # Keypair Files (CRITICAL - Contains private keys)
 *.json
@@ -15,12 +14,22 @@ frontend/.env
 !**/tsconfig*.json
 **/id.json
 **/*keypair*.json
+**/*-keypair*.json
 **/*.key
 **/*.pem
 **/*.p12
 **/*.pfx
+**/*_key*
+**/*_secret*
+**/*_token*
 ~/.config/solana/id.json
 **/.config/solana/id.json
+# Explicitly block all key-related files
+*keypair.json
+*keypair-*.json
+treasury-keypair.json
+relayer-keypair.json
+relayer-keypair-*.json
 
 # Database Files
 *.db

@@ -13,6 +13,8 @@ class ConverterService {
     this.exchangeProvider = process.env.EXCHANGE_PROVIDER || 'coingecko'; // coingecko, kraken, coinbase
     this.conversionCache = new Map();
     this.cacheTTL = 60000; // 1 minute
+    this.lastKnownRate = null;
+    this.fallbackRate = parseFloat(process.env.FALLBACK_BTC_TO_ZEC_RATE || '1');
   }
 
   /**
@@ -84,14 +86,19 @@ class ConverterService {
         rate,
         timestamp: Date.now(),
       });
+      this.lastKnownRate = rate;
 
       return rate;
     } catch (error) {
       console.error('Error fetching exchange rate:', error);
-      
-      // Return fallback rate if API fails
-      console.warn('Using fallback exchange rate: 0.1 ZEC per BTC');
-      return 0.1; // Fallback: 1 BTC = 0.1 ZEC (example)
+
+      if (this.lastKnownRate) {
+        console.warn('Using last known exchange rate due to API failure');
+        return this.lastKnownRate;
+      }
+
+      console.warn('Using configured fallback exchange rate due to API failure');
+      return this.fallbackRate;
     }
   }
 

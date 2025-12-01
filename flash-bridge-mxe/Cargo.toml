@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "programs/*"
+    "programs/src"
 ]
 resolver = "2"
 
@@ -12,6 +12,3 @@ codegen-units = 1
 [profile.release.build-override]
 opt-level = 3
 incremental = false
-
-
-

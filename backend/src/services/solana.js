@@ -66,15 +66,24 @@ const getSolanaDeps = () => {
 const fs = require('fs');
 const path = require('path');
 
-// Load IDL
+// Load IDL - Try flash_bridge_mxe first (actual program), fallback to zenz_bridge for backward compatibility
 let idl;
 try {
-  const idlPath = path.join(__dirname, '../../../target/idl/zenz_bridge.json');
-  if (fs.existsSync(idlPath)) {
-    idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
+  // Try flash_bridge_mxe IDL first (correct program)
+  const flashBridgeIdlPath = path.join(__dirname, '../../../flash-bridge-mxe/target/idl/flash_bridge_mxe.json');
+  if (fs.existsSync(flashBridgeIdlPath)) {
+    idl = JSON.parse(fs.readFileSync(flashBridgeIdlPath, 'utf8'));
+    console.log('✅ Loaded flash_bridge_mxe IDL');
+  } else {
+    // Fallback to old path for backward compatibility
+    const oldIdlPath = path.join(__dirname, '../../../target/idl/zenz_bridge.json');
+    if (fs.existsSync(oldIdlPath)) {
+      idl = JSON.parse(fs.readFileSync(oldIdlPath, 'utf8'));
+      console.warn('⚠️  Using old zenz_bridge IDL (flash_bridge_mxe not found)');
+    }
   }
 } catch (error) {
-  console.warn('IDL not found, some functionality may be limited');
+  console.warn('IDL not found, some functionality may be limited:', error.message);
 }
 
 class SolanaService {
@@ -85,24 +94,43 @@ class SolanaService {
 
     this.connection = new deps.Connection(rpcUrl, 'confirmed');
 
-    // Only initialize programId if PROGRAM_ID is set (for zenZEC features)
-    if (process.env.PROGRAM_ID && process.env.PROGRAM_ID !== '') {
-      this.programId = new deps.PublicKey(process.env.PROGRAM_ID);
+    // Initialize programId - prefer FLASH_BRIDGE_MXE_PROGRAM_ID, fallback to PROGRAM_ID
+    const flashBridgeProgramId = process.env.FLASH_BRIDGE_MXE_PROGRAM_ID || process.env.PROGRAM_ID;
+    if (flashBridgeProgramId && flashBridgeProgramId !== '') {
+      this.programId = new deps.PublicKey(flashBridgeProgramId);
+      console.log(`✅ Program ID initialized: ${this.programId.toString()}`);
     } else {
-      this.programId = null; // Not using zenZEC features
+      this.programId = null; // Not using program features
+      console.warn('⚠️  No program ID configured (FLASH_BRIDGE_MXE_PROGRAM_ID or PROGRAM_ID)');
     }
 
-    // Load relayer keypair if available
-    this.relayerKeypair = this.loadRelayerKeypair();
+    // Initialize keypair as null, will be loaded asynchronously
+    this.relayerKeypair = null;
+    this.initialized = false;
   }
 
-  loadRelayerKeypair() {
+  async initialize() {
+    if (this.initialized) return;
+
+    // Load relayer keypair asynchronously
+    this.relayerKeypair = await this.loadRelayerKeypair();
+    this.initialized = true;
+  }
+
+  async loadRelayerKeypair() {
     try {
       const deps = getSolanaDeps();
       const keypairPath = process.env.RELAYER_KEYPAIR_PATH || path.join(__dirname, '..', '..', 'backend', 'relayer-keypair-new.json');
-      if (fs.existsSync(keypairPath)) {
-        const keypairData = JSON.parse(fs.readFileSync(keypairPath, 'utf8'));
-        return deps.Keypair.fromSecretKey(Uint8Array.from(keypairData));
+      const fsPromises = require('fs').promises;
+
+      try {
+        await fsPromises.access(keypairPath);
+        const keypairData = await fsPromises.readFile(keypairPath, 'utf8');
+        const keypairJson = JSON.parse(keypairData);
+        return deps.Keypair.fromSecretKey(Uint8Array.from(keypairJson));
+      } catch (fileError) {
+        // File doesn't exist or can't be read
+        return null;
       }
     } catch (error) {
       console.warn('Relayer keypair not loaded:', error.message);
@@ -116,11 +144,11 @@ class SolanaService {
 
   getProgram() {
     if (!this.programId) {
-      throw new Error('Solana program not configured. Set PROGRAM_ID in .env to enable zenZEC features.');
+      throw new Error('Solana program not configured. Set FLASH_BRIDGE_MXE_PROGRAM_ID or PROGRAM_ID in .env to enable program features.');
     }
 
     if (!idl || !this.relayerKeypair) {
-      throw new Error('IDL or relayer keypair not available');
+      throw new Error('IDL or relayer keypair not available. Ensure flash_bridge_mxe is built: cd flash-bridge-mxe && anchor build');
     }
 
     const deps = getSolanaDeps();
@@ -191,36 +219,67 @@ class SolanaService {
     throw lastError;
   }
 
+  /**
+   * DEPRECATED: Mint zenZEC tokens (custom token)
+   * NOTE: This function requires a Solana program with mintZenZec instruction.
+   * The current flash_bridge_mxe program does NOT have this instruction.
+   * Use transferNativeZEC() instead, which transfers native ZEC from treasury.
+   * 
+   * This function is kept for backward compatibility but will fail if called.
+   */
   async mintZenZEC(userAddress, amount) {
+    console.warn('⚠️  DEPRECATED: mintZenZEC() called. This requires a program with mintZenZec instruction.');
+    console.warn('⚠️  The current flash_bridge_mxe program does not support minting. Use native ZEC transfers instead.');
+    console.warn('⚠️  This operation will likely fail. Consider using transferNativeZEC() instead.');
+    
     if (!this.relayerKeypair) {
       throw new Error('Relayer keypair not configured');
     }
 
-    const program = this.getProgram();
-    const configPda = await this.getConfigPDA();
-    const userPubkey = new PublicKey(userAddress);
-    const mintPubkey = new PublicKey(process.env.ZENZEC_MINT);
+    // Try to get program, but expect it to fail or not have the instruction
+    try {
+      const program = this.getProgram();
+      const configPda = await this.getConfigPDA();
+      const userPubkey = new PublicKey(userAddress);
+      const mintPubkey = new PublicKey(process.env.ZENZEC_MINT);
 
-    // Get or create user token account (ATA)
-    const userTokenAccount = await this.getOrCreateTokenAccount(userPubkey);
+      // Check if program has mintZenZec instruction
+      if (!program.methods.mintZenZec) {
+        throw new Error(
+          'Program does not have mintZenZec instruction. ' +
+          'The flash_bridge_mxe program does not support custom token minting. ' +
+          'Use transferNativeZEC() to transfer native ZEC from treasury instead.'
+        );
+      }
 
-    // Retry minting operation with exponential backoff
-    return await this.retryOperation(async () => {
-      const tx = await program.methods
-        .mintZenZec(new BN(amount))
-        .accounts({
-          config: configPda,
-          mint: mintPubkey,
-          userTokenAccount: userTokenAccount,
-          authority: this.relayerKeypair.publicKey,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .rpc();
+      // Get or create user token account (ATA)
+      const userTokenAccount = await this.getOrCreateTokenAccount(userPubkey);
 
-      console.log(`Minted ${amount} zenZEC to ${userAddress}`);
-      console.log(`Transaction: ${tx}`);
-      return tx;
-    }, 3, 2000); // 3 retries, 2s base delay
+      // Retry minting operation with exponential backoff
+      return await this.retryOperation(async () => {
+        const tx = await program.methods
+          .mintZenZec(new BN(amount))
+          .accounts({
+            config: configPda,
+            mint: mintPubkey,
+            userTokenAccount: userTokenAccount,
+            authority: this.relayerKeypair.publicKey,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .rpc();
+
+        console.log(`Minted ${amount} zenZEC to ${userAddress}`);
+        console.log(`Transaction: ${tx}`);
+        return tx;
+      }, 3, 2000); // 3 retries, 2s base delay
+    } catch (error) {
+      // Provide helpful error message
+      throw new Error(
+        `mintZenZEC() is not supported with the current program. ` +
+        `Error: ${error.message}. ` +
+        `Use transferNativeZEC() to transfer native ZEC from treasury instead.`
+      );
+    }
   }
 
   async getOrCreateTokenAccount(userPubkey, mintAddress = null) {
@@ -371,45 +430,35 @@ class SolanaService {
    * @param {number} amount - Amount in smallest unit (lamports)
    * @returns {Promise<string>} Transaction signature
    */
-  async transferNativeZEC(userAddress, amount) {
+  async transferNativeSOL(userAddress, amount) {
     if (!this.relayerKeypair) {
       throw new Error('Relayer keypair not configured');
     }
 
     const deps = getSolanaDeps();
-    const zecMint = this.getNativeZECMint();
     const userPubkey = new deps.PublicKey(userAddress);
-    
-    // Get treasury ZEC account (source)
-    const treasuryZECAccount = await this.getTreasuryZECAccount(zecMint);
-    
-    // Check treasury balance
-    const treasuryBalance = await this.getTreasuryZECBalance();
-    if (treasuryBalance < BigInt(amount)) {
+
+    // Check treasury SOL balance
+    const treasuryBalance = await this.connection.getBalance(this.relayerKeypair.publicKey);
+    if (treasuryBalance < amount) {
       throw new Error(
-        `Insufficient ZEC reserves. Requested: ${amount}, Available: ${treasuryBalance.toString()}`
+        `Insufficient SOL reserves. Requested: ${amount}, Available: ${treasuryBalance}`
       );
     }
-    
-    // Get or create user's ZEC token account (destination)
-    const userZECAccount = await this.getOrCreateTokenAccount(userPubkey, zecMint.toString());
-    
-    // Create transfer instruction
-    const transferIx = deps.createTransferInstruction(
-      treasuryZECAccount,           // Source: Bridge treasury
-      userZECAccount,                // Destination: User
-      this.relayerKeypair.publicKey, // Authority (treasury owner)
-      amount,                        // Amount in smallest unit
-      [],
-      deps.TOKEN_PROGRAM_ID
-    );
-    
+
+    // Create SOL transfer instruction
+    const transferIx = deps.SystemProgram.transfer({
+      fromPubkey: this.relayerKeypair.publicKey, // Source: Bridge treasury
+      toPubkey: userPubkey,                      // Destination: User
+      lamports: amount,                          // Amount in lamports
+    });
+
     // Create and send transaction
     const transaction = new deps.Transaction().add(transferIx);
-    
+
     // Get blockhash with expiry info
     let { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
-    
+
     // Check if blockhash is still valid
     const currentBlockHeight = await this.connection.getBlockHeight();
     if (currentBlockHeight > lastValidBlockHeight) {
@@ -418,7 +467,7 @@ class SolanaService {
       lastValidBlockHeight = blockhashInfo.lastValidBlockHeight;
       console.log('Blockhash expired during transfer, using new blockhash');
     }
-    
+
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = this.relayerKeypair.publicKey;
     transaction.sign(this.relayerKeypair);
@@ -435,9 +484,9 @@ class SolanaService {
       lastValidBlockHeight
     }, 'confirmed');
     
-    console.log(`✓ Transferred ${amount / 1e8} native ZEC to ${userAddress}`);
+    console.log(`✓ Transferred ${amount / 1e9} SOL to ${userAddress}`);
     console.log(`  Transaction: ${signature}`);
-    
+
     return signature;
   }
 
@@ -521,8 +570,15 @@ class SolanaService {
   }
 
   /**
-   * Create burn_for_btc transaction (without signing)
-   * Returns transaction ready for frontend to sign
+   * DEPRECATED: Create burn_for_btc transaction (without signing)
+   * 
+   * ⚠️  WARNING: This function requires a burnForBtc instruction that does NOT exist
+   * in the flash_bridge_mxe program. This will fail if called.
+   * 
+   * Use transferNativeZEC() to transfer native ZEC from treasury instead.
+   * For BTC redemptions, use the hybrid automation in btc-relayer.js which handles
+   * native ZEC transfers automatically.
+   * 
    * @param {string} userAddress - User's Solana address
    * @param {number} amount - Amount of zenZEC to burn (in zenZEC, not smallest unit)
    * @param {string} btcAddress - Bitcoin address to send BTC to (can be encrypted)
@@ -530,58 +586,87 @@ class SolanaService {
    * @returns {Promise<Transaction>} Transaction ready to sign
    */
   async createBurnForBTCTransaction(userAddress, amount, btcAddress, usePrivacy = false) {
-    const userPubkey = new PublicKey(userAddress);
-    const mintPubkey = new PublicKey(process.env.ZENZEC_MINT);
-    const program = this.getProgram();
-    const configPda = await this.getConfigPDA();
+    console.warn('⚠️  DEPRECATED: createBurnForBTCTransaction() called');
+    console.warn('⚠️  burnForBtc instruction does not exist in flash_bridge_mxe program');
+    console.warn('⚠️  This operation will fail. Use native ZEC transfers instead.');
     
-    // Get user token account
-    const userTokenAccount = await getAssociatedTokenAddress(
-      mintPubkey,
-      userPubkey,
-      false,
-      TOKEN_PROGRAM_ID,
-      ASSOCIATED_TOKEN_PROGRAM_ID
-    );
+    try {
+      const userPubkey = new PublicKey(userAddress);
+      const mintPubkey = new PublicKey(process.env.ZENZEC_MINT);
+      const program = this.getProgram();
+      const configPda = await this.getConfigPDA();
+      
+      // Check if program has burnForBtc method
+      if (!program.methods.burnForBtc) {
+        throw new Error(
+          'Program does not have burnForBtc instruction. ' +
+          'The flash_bridge_mxe program does not support burn operations. ' +
+          'Use transferNativeZEC() or the hybrid automation in btc-relayer.js instead.'
+        );
+      }
+      
+      // Get user token account
+      const userTokenAccount = await getAssociatedTokenAddress(
+        mintPubkey,
+        userPubkey,
+        false,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
 
-    // Convert amount to smallest unit
-    const amountBN = new BN(Math.floor(amount * 1e8));
+      // Convert amount to smallest unit
+      const amountBN = new BN(Math.floor(amount * 1e8));
 
-    // Create burn_for_btc instruction
-    const burnIx = await program.methods
-      .burnForBtc(amountBN, btcAddress, usePrivacy)
-      .accounts({
-        config: configPda,
-        mint: mintPubkey,
-        userTokenAccount: userTokenAccount,
-        user: userPubkey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .instruction();
+      // Create burn_for_btc instruction (will fail if instruction doesn't exist)
+      const burnIx = await program.methods
+        .burnForBtc(amountBN, btcAddress, usePrivacy)
+        .accounts({
+          config: configPda,
+          mint: mintPubkey,
+          userTokenAccount: userTokenAccount,
+          user: userPubkey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .instruction();
 
-    // Create transaction
-    const transaction = new Transaction().add(burnIx);
-    
-    // Get blockhash
-    let { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
-    
-    // Check if blockhash is still valid
-    const currentBlockHeight = await this.connection.getBlockHeight();
-    if (currentBlockHeight > lastValidBlockHeight) {
-      const blockhashInfo = await this.connection.getLatestBlockhash('confirmed');
-      blockhash = blockhashInfo.blockhash;
-      lastValidBlockHeight = blockhashInfo.lastValidBlockHeight;
+      // Create transaction
+      const transaction = new Transaction().add(burnIx);
+      
+      // Get blockhash
+      let { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
+      
+      // Check if blockhash is still valid
+      const currentBlockHeight = await this.connection.getBlockHeight();
+      if (currentBlockHeight > lastValidBlockHeight) {
+        const blockhashInfo = await this.connection.getLatestBlockhash('confirmed');
+        blockhash = blockhashInfo.blockhash;
+        lastValidBlockHeight = blockhashInfo.lastValidBlockHeight;
+      }
+      
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = userPubkey;
+
+      return transaction;
+    } catch (error) {
+      // Provide helpful error message
+      throw new Error(
+        `createBurnForBTCTransaction() is not supported with the current program. ` +
+        `Error: ${error.message}. ` +
+        `Use transferNativeZEC() or the hybrid automation in btc-relayer.js for BTC redemptions.`
+      );
     }
-    
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = userPubkey;
-
-    return transaction;
   }
 
   /**
-   * Burn zenZEC for BTC
-   * User burns zenZEC, emits event for BTC relayer
+   * DEPRECATED: Burn zenZEC for BTC
+   * 
+   * ⚠️  WARNING: This function requires a burnForBtc instruction that does NOT exist
+   * in the flash_bridge_mxe program. This will fail if called.
+   * 
+   * Use transferNativeZEC() to transfer native ZEC from treasury instead.
+   * For BTC redemptions, use the hybrid automation in btc-relayer.js which handles
+   * native ZEC transfers automatically.
+   * 
    * @param {string} userAddress - User's Solana address
    * @param {number} amount - Amount of zenZEC to burn (in zenZEC, not smallest unit)
    * @param {string} btcAddress - Bitcoin address to send BTC to
@@ -590,6 +675,10 @@ class SolanaService {
    * @returns {Promise<string>} Transaction signature
    */
   async burnZenZECForBTC(userAddress, amount, btcAddress, usePrivacy = false, signTransaction) {
+    console.warn('⚠️  DEPRECATED: burnZenZECForBTC() called');
+    console.warn('⚠️  burnForBtc instruction does not exist in flash_bridge_mxe program');
+    console.warn('⚠️  Use native ZEC transfers or hybrid automation instead.');
+    
     if (!signTransaction) {
       throw new Error('User must sign transaction for burning');
     }
@@ -619,4 +708,10 @@ class SolanaService {
   }
 }
 
-module.exports = new SolanaService();
+// Create singleton instance and initialize it
+const solanaService = new SolanaService();
+solanaService.initialize().catch(error => {
+  console.error('Failed to initialize Solana service:', error);
+});
+
+module.exports = solanaService;
