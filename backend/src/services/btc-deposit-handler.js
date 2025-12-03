@@ -345,6 +345,7 @@ class BTCDepositHandler {
           }
         } else if (databaseService.isConnected()) {
           // Fallback: update without transaction if client not available
+          const txId = `btc_deposit_${payment.txHash.substring(0, 16)}`;
           try {
             await databaseService.updateBTCDepositStatus(payment.txHash, 'processed', {
               solanaAddress: userSolanaAddress,
@@ -353,7 +354,7 @@ class BTCDepositHandler {
             });
 
             await databaseService.saveBridgeTransaction({
-              txId: `btc_deposit_${payment.txHash.substring(0, 16)}`,
+              txId,
               solanaAddress: userSolanaAddress,
               amount: usdcAmount,
               reserveAsset: 'BTC',
@@ -363,6 +364,13 @@ class BTCDepositHandler {
               zcashTxHash: null,
               demoMode: false,
               outputToken: (outputMint || this.getUSDCMint()).toBase58(),
+            });
+            
+            // Record fee (fallback path)
+            feeService.recordFee({
+              tier,
+              totalFeeUSD: feeCalculation.totalFeeUSD,
+              txId,
             });
           } catch (error) {
             logger.error('Error saving BTC deposit to database:', error);

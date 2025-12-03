@@ -129,10 +129,39 @@ class APIClient {
 
   /**
    * Claim a BTC deposit after monitoring detects it
-   * @param {Object} data - { solanaAddress, bitcoinTxHash, outputTokenMint? }
+   * @param {Object} data - { solanaAddress, bitcoinTxHash, outputTokenMint?, tier?, usePrivacy?, referralCode? }
+   * @param {string} data.tier - Service tier: 'basic' | 'fast' | 'private' | 'premium'
+   * @param {boolean} data.usePrivacy - Enable Arcium MPC encryption
+   * @param {string} data.referralCode - Referral code for fee discount
    */
   async claimBTCDeposit(data) {
-    const response = await this.client.post('/api/bridge/btc-deposit', data);
+    const response = await this.client.post('/api/bridge/btc-deposit', {
+      solanaAddress: data.solanaAddress,
+      bitcoinTxHash: data.bitcoinTxHash,
+      outputTokenMint: data.outputTokenMint || null,
+      tier: data.tier || 'basic',
+      usePrivacy: data.usePrivacy || false,
+      referralCode: data.referralCode || null,
+    });
+    return response.data;
+  }
+
+  /**
+   * Get fee quote for a bridge transaction
+   * @param {number} amountUSD - Amount in USD
+   * @param {string} tier - Service tier
+   */
+  async getFeeQuote(amountUSD, tier = 'basic') {
+    const response = await this.client.get(`/api/v1/fees/quote?amount=${amountUSD}&tier=${tier}`);
+    return response.data;
+  }
+
+  /**
+   * Get all available service tiers with pricing
+   * @param {number} amount - Amount for pricing example
+   */
+  async getFeeTiers(amount = 1000) {
+    const response = await this.client.get(`/api/v1/fees/tiers?amount=${amount}`);
     return response.data;
   }
 
