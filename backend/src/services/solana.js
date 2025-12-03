@@ -742,6 +742,211 @@ class SolanaService {
     console.log(`Burned ${amount} zenZEC for BTC to ${btcAddress.substring(0, 20)}... (encrypted: ${usePrivacy})`);
     return signature;
   }
+
+  // ==========================================================================
+  // Flexible Token Transfer Methods
+  // ==========================================================================
+
+  /**
+   * Transfer any SPL token from treasury to user
+   * @param {string} userAddress - User's Solana address
+   * @param {string} tokenMint - Token mint address
+   * @param {number|bigint} amount - Amount in smallest unit (e.g., lamports for SOL)
+   * @returns {Promise<string>} Transaction signature
+   */
+  async transferToken(userAddress, tokenMint, amount) {
+    if (!this.relayerKeypair) {
+      throw new Error('Relayer keypair not configured');
+    }
+
+    const deps = getSolanaDeps();
+    const userPubkey = new deps.PublicKey(userAddress);
+    const mintPubkey = new deps.PublicKey(tokenMint);
+    const amountBigInt = typeof amount === 'bigint' ? amount : BigInt(Math.floor(amount));
+
+    // Get treasury token account
+    const treasuryTokenAccount = await deps.getAssociatedTokenAddress(
+      mintPubkey,
+      this.relayerKeypair.publicKey,
+      false,
+      deps.TOKEN_PROGRAM_ID,
+      deps.ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+
+    // Check treasury balance
+    try {
+      const treasuryInfo = await deps.getAccount(this.connection, treasuryTokenAccount);
+      const balance = BigInt(treasuryInfo.amount.toString());
+      
+      if (balance < amountBigInt) {
+        throw new Error(
+          `Insufficient treasury token balance. Requested: ${amountBigInt}, Available: ${balance}`
+        );
+      }
+    } catch (error) {
+      if (error.message.includes('could not find account')) {
+        throw new Error(`Treasury does not have token account for mint: ${tokenMint}`);
+      }
+      throw error;
+    }
+
+    // Get or create user token account
+    const userTokenAccount = await deps.getAssociatedTokenAddress(
+      mintPubkey,
+      userPubkey,
+      false,
+      deps.TOKEN_PROGRAM_ID,
+      deps.ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+
+    const transaction = new deps.Transaction();
+
+    // Check if user token account exists, create if needed
+    try {
+      await deps.getAccount(this.connection, userTokenAccount);
+    } catch (error) {
+      if (error.message.includes('could not find account')) {
+        // Create associated token account for user
+        transaction.add(
+          deps.createAssociatedTokenAccountInstruction(
+            this.relayerKeypair.publicKey, // payer
+            userTokenAccount,              // ATA address
+            userPubkey,                    // owner
+            mintPubkey,                    // mint
+            deps.TOKEN_PROGRAM_ID,
+            deps.ASSOCIATED_TOKEN_PROGRAM_ID
+          )
+        );
+        console.log(`Creating token account for user: ${userAddress}`);
+      } else {
+        throw error;
+      }
+    }
+
+    // Add transfer instruction
+    transaction.add(
+      deps.createTransferInstruction(
+        treasuryTokenAccount,              // source
+        userTokenAccount,                  // destination
+        this.relayerKeypair.publicKey,     // owner of source
+        amountBigInt,                      // amount
+        [],                                // multisig signers (none)
+        deps.TOKEN_PROGRAM_ID
+      )
+    );
+
+    // Get blockhash and send
+    let { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
+    
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = this.relayerKeypair.publicKey;
+    transaction.sign(this.relayerKeypair);
+
+    const signature = await this.connection.sendRawTransaction(
+      transaction.serialize(),
+      { skipPreflight: false }
+    );
+
+    // Confirm transaction
+    await this.connection.confirmTransaction({
+      signature,
+      blockhash,
+      lastValidBlockHeight
+    }, 'confirmed');
+
+    console.log(`✓ Transferred token ${tokenMint.substring(0, 8)}... to ${userAddress}`);
+    console.log(`  Amount: ${amountBigInt.toString()}`);
+    console.log(`  Transaction: ${signature}`);
+
+    return signature;
+  }
+
+  /**
+   * Transfer native ZEC from treasury to user
+   * @param {string} userAddress - User's Solana address
+   * @param {number|bigint} amount - Amount in smallest unit
+   * @returns {Promise<string>} Transaction signature
+   */
+  async transferNativeZEC(userAddress, amount) {
+    const zecMint = this.getNativeZECMint();
+    return this.transferToken(userAddress, zecMint.toString(), amount);
+  }
+
+  /**
+   * Get treasury balance for any SPL token
+   * @param {string} tokenMint - Token mint address
+   * @returns {Promise<bigint>} Balance in smallest unit
+   */
+  async getTreasuryTokenBalance(tokenMint) {
+    if (!this.relayerKeypair) {
+      throw new Error('Relayer keypair not configured');
+    }
+
+    const deps = getSolanaDeps();
+    const mintPubkey = new deps.PublicKey(tokenMint);
+
+    try {
+      const treasuryTokenAccount = await deps.getAssociatedTokenAddress(
+        mintPubkey,
+        this.relayerKeypair.publicKey,
+        false,
+        deps.TOKEN_PROGRAM_ID,
+        deps.ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+
+      const accountInfo = await deps.getAccount(this.connection, treasuryTokenAccount);
+      return BigInt(accountInfo.amount.toString());
+    } catch (error) {
+      if (error.message.includes('could not find account')) {
+        return BigInt(0);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get treasury SOL balance
+   * @returns {Promise<bigint>} Balance in lamports
+   */
+  async getTreasurySOLBalance() {
+    if (!this.relayerKeypair) {
+      throw new Error('Relayer keypair not configured');
+    }
+
+    const balance = await this.connection.getBalance(this.relayerKeypair.publicKey);
+    return BigInt(balance);
+  }
+
+  /**
+   * Get all treasury balances (SOL + configured tokens)
+   * @returns {Promise<Object>} All balances
+   */
+  async getAllTreasuryBalances() {
+    const balances = {
+      SOL: await this.getTreasurySOLBalance(),
+    };
+
+    // Get ZEC balance if configured
+    try {
+      balances.ZEC = await this.getTreasuryZECBalance();
+    } catch (error) {
+      balances.ZEC = BigInt(0);
+    }
+
+    // Get USDC balance if configured
+    const usdcMint = process.env.USDC_MINT || 
+      (this.network === 'mainnet-beta' 
+        ? 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+        : '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+    
+    try {
+      balances.USDC = await this.getTreasuryTokenBalance(usdcMint);
+    } catch (error) {
+      balances.USDC = BigInt(0);
+    }
+
+    return balances;
+  }
 }
 
 // Create singleton instance and initialize it

@@ -66,6 +66,10 @@ Require \`x-client-signature\` header for mutation operations.
       description: 'Bridge operations for BTC → SOL transfers',
     },
     {
+      name: 'Tokens',
+      description: 'Output token configuration and treasury management',
+    },
+    {
       name: 'Arcium',
       description: 'Privacy-preserving MPC operations',
     },
@@ -311,6 +315,125 @@ Require \`x-client-signature\` header for mutation operations.
         },
       },
     },
+    '/bridge/tokens': {
+      get: {
+        tags: ['Tokens'],
+        summary: 'Get supported output tokens',
+        description: 'List all supported output tokens for bridge payouts (SOL, USDC, ZEC, etc.)',
+        operationId: 'getSupportedTokens',
+        responses: {
+          200: {
+            description: 'Supported tokens retrieved',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    tokens: {
+                      type: 'array',
+                      items: {
+                        $ref: '#/components/schemas/TokenInfo',
+                      },
+                    },
+                    default: { type: 'string', description: 'Default output token symbol' },
+                    network: { type: 'string' },
+                  },
+                },
+                example: {
+                  success: true,
+                  tokens: [
+                    { symbol: 'SOL', name: 'Solana', decimals: 9, isNative: true, mint: null },
+                    { symbol: 'USDC', name: 'USD Coin', decimals: 6, isNative: false, mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' },
+                    { symbol: 'ZEC', name: 'Zcash', decimals: 8, isNative: false, mint: 'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS' },
+                  ],
+                  default: 'SOL',
+                  network: 'devnet',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/bridge/tokens/{symbol}': {
+      get: {
+        tags: ['Tokens'],
+        summary: 'Get token details',
+        description: 'Get detailed information about a specific token',
+        operationId: 'getTokenInfo',
+        parameters: [
+          {
+            name: 'symbol',
+            in: 'path',
+            required: true,
+            description: 'Token symbol (e.g., SOL, USDC, ZEC)',
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Token info retrieved',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    token: { $ref: '#/components/schemas/TokenInfo' },
+                    balance: { type: 'object', description: 'Treasury balance (admin only)' },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: 'Token not supported',
+          },
+        },
+      },
+    },
+    '/bridge/treasury': {
+      get: {
+        tags: ['Tokens', 'Admin'],
+        summary: 'Get treasury balances',
+        description: 'Get treasury balances for all supported tokens (requires admin API key)',
+        operationId: 'getTreasuryBalances',
+        security: [{ apiKey: [] }],
+        responses: {
+          200: {
+            description: 'Treasury balances retrieved',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    balances: {
+                      type: 'object',
+                      additionalProperties: {
+                        type: 'object',
+                        properties: {
+                          symbol: { type: 'string' },
+                          balance: { type: 'string' },
+                          formatted: { type: 'string' },
+                          sufficient: { type: 'boolean' },
+                        },
+                      },
+                    },
+                    network: { type: 'string' },
+                    timestamp: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: 'Unauthorized - requires admin API key',
+          },
+        },
+      },
+    },
     '/bridge/transaction/{txId}': {
       get: {
         tags: ['Bridge'],
@@ -531,6 +654,40 @@ Require \`x-client-signature\` header for mutation operations.
               currentReserve: { type: 'number' },
             },
           },
+        },
+      },
+      TokenInfo: {
+        type: 'object',
+        description: 'Information about a supported output token',
+        properties: {
+          symbol: {
+            type: 'string',
+            description: 'Token symbol (e.g., SOL, USDC, ZEC)',
+          },
+          name: {
+            type: 'string',
+            description: 'Full token name',
+          },
+          decimals: {
+            type: 'integer',
+            description: 'Number of decimal places',
+          },
+          isNative: {
+            type: 'boolean',
+            description: 'Whether this is the native token (SOL)',
+          },
+          mint: {
+            type: 'string',
+            nullable: true,
+            description: 'Token mint address (null for native SOL)',
+          },
+        },
+        example: {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          decimals: 6,
+          isNative: false,
+          mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
         },
       },
       Transaction: {

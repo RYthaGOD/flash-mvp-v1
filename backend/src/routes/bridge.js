@@ -7,6 +7,7 @@ const converterService = require('../services/converter');
 const databaseService = require('../services/database');
 const cryptoProofsService = require('../services/crypto-proofs');
 const reserveManager = require('../services/reserveManager');
+const tokenTreasury = require('../services/token-treasury');
 const {
   validatePublicKey,
   validateBridgeRequest,
@@ -147,6 +148,76 @@ router.post('/btc-address', walletBridgeLimiter, requireClientSignature, asyncHa
     }
     throw new APIError(500, 'Failed to allocate BTC deposit address', { reason: error.message });
   }
+}));
+
+// =============================================================================
+// Output Token Configuration Endpoints
+// =============================================================================
+
+/**
+ * Get supported output tokens
+ * GET /api/bridge/tokens
+ */
+router.get('/tokens', asyncHandler(async (req, res) => {
+  const tokens = tokenTreasury.listSupportedTokens();
+  const defaultToken = tokenTreasury.getDefaultToken();
+  
+  res.json({
+    success: true,
+    tokens,
+    default: defaultToken.symbol,
+    network: process.env.SOLANA_NETWORK || 'devnet',
+  });
+}));
+
+/**
+ * Get treasury balances for all supported tokens
+ * GET /api/bridge/treasury
+ */
+router.get('/treasury', requireApiKey, asyncHandler(async (req, res) => {
+  try {
+    const balances = await tokenTreasury.getAllTreasuryBalances();
+    
+    res.json({
+      success: true,
+      balances,
+      network: process.env.SOLANA_NETWORK || 'devnet',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    throw new APIError(500, 'Failed to get treasury balances', { reason: error.message });
+  }
+}));
+
+/**
+ * Get specific token info
+ * GET /api/bridge/tokens/:symbol
+ */
+router.get('/tokens/:symbol', asyncHandler(async (req, res) => {
+  const { symbol } = req.params;
+  const token = tokenTreasury.getToken(symbol);
+  
+  if (!token) {
+    throw new APIError(404, `Token ${symbol} not supported`);
+  }
+  
+  // Include treasury balance if admin
+  let balance = null;
+  const apiKey = req.headers['x-api-key'] || req.headers['x-admin-api-key'];
+  if (apiKey && apiKey === process.env.ADMIN_API_KEY) {
+    try {
+      const balanceInfo = await tokenTreasury.getTreasuryBalance(symbol);
+      balance = balanceInfo;
+    } catch (error) {
+      balance = { error: error.message };
+    }
+  }
+  
+  res.json({
+    success: true,
+    token,
+    balance,
+  });
 }));
 
 /**
