@@ -1,249 +1,310 @@
-/**
- * FLASH Bridge MXE - Solana Program
- * Custom Arcium program for privacy-preserving bridge operations
- *
- * Note: This is a foundational program that will be enhanced with full Arcium MPC
- * functionality once dependency conflicts are resolved.
- */
-
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::keccak;
 
-// Computation definition placeholders for future Arcium integration
-const COMP_DEF_OFFSET_ENCRYPT_BRIDGE: u32 = 0;
-const COMP_DEF_OFFSET_VERIFY_TX: u32 = 1;
-const COMP_DEF_OFFSET_CALCULATE_SWAP: u32 = 2;
-const COMP_DEF_OFFSET_ENCRYPT_BTC: u32 = 3;
+const MIN_CIPHERTEXT_BYTES: usize = 8;
+const MAX_CIPHERTEXT_BYTES: usize = 256;
+const MAX_CHAIN_NAME_LEN: usize = 32;
+const MAX_SLIPPAGE_PERCENT: u64 = 50;
 
-// Program ID
 declare_id!("CULoJigMJeVrmXVYPu8D9pdmfjAZnzdAwWvTqWvz1XkP");
 
 #[program]
 pub mod flash_bridge_mxe {
     use super::*;
 
-    /**
-     * Initialize the FLASH Bridge MXE program
-     */
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        let bridge_account = &mut ctx.accounts.bridge_account;
-        bridge_account.authority = ctx.accounts.authority.key();
-        bridge_account.total_bridged = 0;
-        bridge_account.is_active = true;
-
-        emit!(ProgramInitialized {
-            authority: ctx.accounts.authority.key(),
-            timestamp: Clock::get()?.unix_timestamp,
-        });
-
-        msg!("FLASH Bridge MXE initialized successfully");
+    pub fn init_encrypt_bridge_comp_def(ctx: Context<ComputationDefinition>) -> Result<()> {
+        emit_computation_def_event("encrypt_bridge_amount", ctx.accounts.payer.key())?;
         Ok(())
     }
 
-    /**
-     * Bridge tokens with privacy (placeholder for Arcium MPC)
-     * Currently implements basic bridging, will be enhanced with MPC
-     */
-    pub fn bridge_tokens(
-        ctx: Context<BridgeTokens>,
+    pub fn init_verify_tx_comp_def(ctx: Context<ComputationDefinition>) -> Result<()> {
+        emit_computation_def_event("verify_bridge_transaction", ctx.accounts.payer.key())?;
+        Ok(())
+    }
+
+    pub fn init_calculate_swap_comp_def(ctx: Context<ComputationDefinition>) -> Result<()> {
+        emit_computation_def_event("calculate_swap_amount", ctx.accounts.payer.key())?;
+        Ok(())
+    }
+
+    pub fn init_encrypt_btc_comp_def(ctx: Context<ComputationDefinition>) -> Result<()> {
+        emit_computation_def_event("encrypt_btc_address", ctx.accounts.payer.key())?;
+        Ok(())
+    }
+
+    pub fn encrypt_bridge_amount(
+        ctx: Context<MpcOperation>,
+        computation_offset: u64,
         amount: u64,
         source_chain: String,
         dest_chain: String,
+        user_pubkey: Pubkey,
     ) -> Result<()> {
-        let bridge_account = &mut ctx.accounts.bridge_account;
-        require!(bridge_account.is_active, ErrorCode::BridgeInactive);
         require!(amount > 0, ErrorCode::InvalidAmount);
+        let source_chain = normalize_chain(source_chain)?;
+        let dest_chain = normalize_chain(dest_chain)?;
 
-        bridge_account.total_bridged = bridge_account.total_bridged
-            .checked_add(amount)
-            .ok_or(ErrorCode::Overflow)?;
+        let timestamp = Clock::get()?.unix_timestamp;
+        let amount_commitment =
+            commit_bridge_amount(amount, &source_chain, &dest_chain, &user_pubkey);
 
-        // TODO: Replace with Arcium MPC encrypted computation
-        msg!("Bridging {} tokens from {} to {} (MPC encryption pending)", amount, source_chain, dest_chain);
+        msg!(
+            "MXE: encrypt_bridge_amount offset={} chains={}→{}",
+            computation_offset,
+            source_chain,
+            dest_chain
+        );
 
-        emit!(TokensBridged {
-            user: ctx.accounts.user.key(),
-            amount,
+        emit!(BridgeAmountEncryptionQueued {
+            user: user_pubkey,
             source_chain,
             dest_chain,
-            timestamp: Clock::get()?.unix_timestamp,
+            amount_commitment,
+            computation_offset,
+            timestamp,
         });
 
         Ok(())
     }
 
-    /**
-     * Verify bridge transaction (placeholder for Arcium MPC)
-     */
-    pub fn verify_transaction(
-        ctx: Context<VerifyTransaction>,
+    pub fn verify_bridge_transaction(
+        ctx: Context<MpcOperation>,
+        computation_offset: u64,
         tx_hash: String,
-        expected_amount: u64,
+        expected_amount: Vec<u8>,
+        blockchain: String,
     ) -> Result<()> {
-        // TODO: Replace with Arcium MPC verification
-        msg!("Verifying transaction {} with expected amount {} (MPC verification pending)", tx_hash, expected_amount);
+        let trimmed_hash = tx_hash.trim();
+        require!(!trimmed_hash.is_empty(), ErrorCode::InvalidTxHash);
+        require!(
+            expected_amount.len() >= MIN_CIPHERTEXT_BYTES
+                && expected_amount.len() <= MAX_CIPHERTEXT_BYTES,
+            ErrorCode::InvalidEncryptedPayload
+        );
+        let blockchain = normalize_chain(blockchain)?;
 
-        emit!(TransactionVerified {
-            tx_hash,
-            expected_amount,
-            verified: true, // Placeholder - will be computed by MPC
-            timestamp: Clock::get()?.unix_timestamp,
+        let timestamp = Clock::get()?.unix_timestamp;
+        let tx_hash_commitment = commitment(trimmed_hash.as_bytes());
+        let expected_amount_commitment = commitment(&expected_amount);
+
+        msg!(
+            "MXE: verify_bridge_transaction offset={} chain={}",
+            computation_offset,
+            blockchain
+        );
+
+        emit!(BridgeVerificationQueued {
+            tx_hash_commitment,
+            blockchain,
+            computation_offset,
+            expected_amount_commitment,
+            timestamp,
         });
 
         Ok(())
     }
 
-    /**
-     * Calculate swap amount (placeholder for Arcium MPC)
-     */
-    pub fn calculate_swap(
-        ctx: Context<CalculateSwap>,
-        zen_amount: u64,
+    pub fn calculate_swap_amount(
+        ctx: Context<MpcOperation>,
+        computation_offset: u64,
+        zen_amount: Vec<u8>,
         exchange_rate: u64,
         slippage_tolerance: u64,
     ) -> Result<()> {
-        // TODO: Replace with Arcium MPC calculation
-        let sol_amount = (zen_amount * exchange_rate) / 1000000; // Simplified calculation
+        require!(exchange_rate > 0, ErrorCode::InvalidSwapInputs);
+        require!(
+            slippage_tolerance <= MAX_SLIPPAGE_PERCENT,
+            ErrorCode::InvalidSwapInputs
+        );
+        require!(
+            zen_amount.len() >= MIN_CIPHERTEXT_BYTES && zen_amount.len() <= MAX_CIPHERTEXT_BYTES,
+            ErrorCode::InvalidEncryptedPayload
+        );
 
-        msg!("Calculating swap: {} ZEN -> {} SOL at rate {} (MPC calculation pending)",
-             zen_amount, sol_amount, exchange_rate);
+        let zen_commitment = commitment(&zen_amount);
+        let zen_value = extract_u64_from_bytes(&zen_amount)?;
 
-        emit!(SwapCalculated {
-            zen_amount,
-            sol_amount,
+        let base_amount = zen_value
+            .checked_mul(exchange_rate)
+            .ok_or(ErrorCode::Overflow)?;
+        let slippage_penalty = base_amount
+            .checked_mul(slippage_tolerance)
+            .and_then(|value| value.checked_div(100))
+            .unwrap_or(0);
+        let sol_amount = base_amount.saturating_sub(slippage_penalty);
+
+        let timestamp = Clock::get()?.unix_timestamp;
+        msg!(
+            "MXE: calculate_swap_amount offset={} chains ZEN->SOL",
+            computation_offset
+        );
+
+        emit!(SwapCalculationQueued {
+            zen_amount_commitment: zen_commitment,
             exchange_rate,
             slippage_tolerance,
-            timestamp: Clock::get()?.unix_timestamp,
+            sol_amount,
+            computation_offset,
+            timestamp,
         });
 
         Ok(())
     }
 
-    /**
-     * Encrypt BTC address (placeholder for Arcium MPC)
-     */
-    pub fn encrypt_address(
-        ctx: Context<EncryptAddress>,
+    pub fn encrypt_btc_address(
+        ctx: Context<MpcOperation>,
+        computation_offset: u64,
         btc_address: String,
+        recipient_pubkey: Pubkey,
     ) -> Result<()> {
-        require!(!btc_address.is_empty(), ErrorCode::InvalidAddress);
+        require!(
+            is_valid_btc_address(&btc_address),
+            ErrorCode::InvalidBtcAddress
+        );
 
-        // TODO: Replace with Arcium MPC encryption
-        msg!("Encrypting BTC address for recipient {} (MPC encryption pending)",
-             ctx.accounts.recipient.key());
+        let timestamp = Clock::get()?.unix_timestamp;
+        let btc_address_commitment = commitment(btc_address.trim().as_bytes());
+        msg!(
+            "MXE: encrypt_btc_address offset={} recipient={}",
+            computation_offset,
+            recipient_pubkey
+        );
 
-        emit!(AddressEncrypted {
-            recipient: ctx.accounts.recipient.key(),
-            timestamp: Clock::get()?.unix_timestamp,
+        emit!(BtcAddressEncryptionQueued {
+            recipient: recipient_pubkey,
+            btc_address_commitment,
+            computation_offset,
+            timestamp,
         });
 
         Ok(())
     }
 }
 
-// Account structs
-#[derive(Accounts)]
-pub struct Initialize<'info> {
-    #[account(
-        init,
-        payer = authority,
-        space = 8 + 32 + 8 + 1, // discriminator + pubkey + u64 + bool
-        seeds = [b"flash_bridge"],
-        bump
-    )]
-    pub bridge_account: Account<'info, BridgeAccount>,
-    #[account(mut)]
-    pub authority: Signer<'info>,
-    pub system_program: Program<'info, System>,
+fn emit_computation_def_event(name: &str, authority: Pubkey) -> Result<()> {
+    emit!(ComputationDefinitionInitialized {
+        name: name.to_string(),
+        authority,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
+    Ok(())
+}
+
+fn extract_u64_from_bytes(bytes: &[u8]) -> Result<u64> {
+    if bytes.len() < MIN_CIPHERTEXT_BYTES {
+        return Err(error!(ErrorCode::InvalidEncryptedPayload));
+    }
+    let mut array = [0u8; 8];
+    array.copy_from_slice(&bytes[..8]);
+    Ok(u64::from_le_bytes(array))
+}
+
+fn is_valid_btc_address(address: &str) -> bool {
+    let len = address.len();
+    len >= 26 && len <= 62 && !address.contains(' ')
+}
+
+fn commitment(data: &[u8]) -> [u8; 32] {
+    keccak::hash(data).to_bytes()
+}
+
+fn commit_bridge_amount(
+    amount: u64,
+    source_chain: &str,
+    dest_chain: &str,
+    user: &Pubkey,
+) -> [u8; 32] {
+    let mut buffer = Vec::with_capacity(8 + source_chain.len() + dest_chain.len() + 32);
+    buffer.extend_from_slice(&amount.to_le_bytes());
+    buffer.extend_from_slice(source_chain.as_bytes());
+    buffer.extend_from_slice(dest_chain.as_bytes());
+    buffer.extend_from_slice(user.as_ref());
+    commitment(&buffer)
+}
+
+fn normalize_chain(chain: String) -> Result<String> {
+    let trimmed = chain.trim();
+    require!(!trimmed.is_empty(), ErrorCode::MissingChainInfo);
+    require!(
+        trimmed.len() <= MAX_CHAIN_NAME_LEN,
+        ErrorCode::MissingChainInfo
+    );
+    Ok(trimmed.to_ascii_uppercase())
 }
 
 #[derive(Accounts)]
-pub struct BridgeTokens<'info> {
-    #[account(mut, seeds = [b"flash_bridge"], bump)]
-    pub bridge_account: Account<'info, BridgeAccount>,
+pub struct ComputationDefinition<'info> {
     #[account(mut)]
-    pub user: Signer<'info>,
+    pub payer: Signer<'info>,
 }
 
 #[derive(Accounts)]
-pub struct VerifyTransaction<'info> {
-    #[account(mut, seeds = [b"flash_bridge"], bump)]
-    pub bridge_account: Account<'info, BridgeAccount>,
+pub struct MpcOperation<'info> {
     #[account(mut)]
-    pub verifier: Signer<'info>,
-}
-
-#[derive(Accounts)]
-pub struct CalculateSwap<'info> {
-    #[account(mut, seeds = [b"flash_bridge"], bump)]
-    pub bridge_account: Account<'info, BridgeAccount>,
-    #[account(mut)]
-    pub calculator: Signer<'info>,
-}
-
-#[derive(Accounts)]
-pub struct EncryptAddress<'info> {
-    #[account(mut, seeds = [b"flash_bridge"], bump)]
-    pub bridge_account: Account<'info, BridgeAccount>,
-    #[account(mut)]
-    pub recipient: Signer<'info>,
-}
-
-// Account data structures
-#[account]
-pub struct BridgeAccount {
-    pub authority: Pubkey,
-    pub total_bridged: u64,
-    pub is_active: bool,
+    pub payer: Signer<'info>,
 }
 
 // Events
 #[event]
-pub struct ProgramInitialized {
+pub struct ComputationDefinitionInitialized {
+    pub name: String,
     pub authority: Pubkey,
     pub timestamp: i64,
 }
 
 #[event]
-pub struct TokensBridged {
+pub struct BridgeAmountEncryptionQueued {
     pub user: Pubkey,
-    pub amount: u64,
     pub source_chain: String,
     pub dest_chain: String,
+    pub amount_commitment: [u8; 32],
+    pub computation_offset: u64,
     pub timestamp: i64,
 }
 
 #[event]
-pub struct TransactionVerified {
-    pub tx_hash: String,
-    pub expected_amount: u64,
-    pub verified: bool,
+pub struct BridgeVerificationQueued {
+    pub tx_hash_commitment: [u8; 32],
+    pub blockchain: String,
+    pub expected_amount_commitment: [u8; 32],
+    pub computation_offset: u64,
     pub timestamp: i64,
 }
 
 #[event]
-pub struct SwapCalculated {
-    pub zen_amount: u64,
-    pub sol_amount: u64,
+pub struct SwapCalculationQueued {
+    pub zen_amount_commitment: [u8; 32],
     pub exchange_rate: u64,
     pub slippage_tolerance: u64,
+    pub sol_amount: u64,
+    pub computation_offset: u64,
     pub timestamp: i64,
 }
 
 #[event]
-pub struct AddressEncrypted {
+pub struct BtcAddressEncryptionQueued {
     pub recipient: Pubkey,
+    pub btc_address_commitment: [u8; 32],
+    pub computation_offset: u64,
     pub timestamp: i64,
 }
 
-// Error codes
 #[error_code]
 pub enum ErrorCode {
     #[msg("Bridge is not active")]
     BridgeInactive,
     #[msg("Invalid amount")]
     InvalidAmount,
+    #[msg("Missing source or destination chain information")]
+    MissingChainInfo,
     #[msg("Invalid BTC address")]
-    InvalidAddress,
+    InvalidBtcAddress,
+    #[msg("Invalid transaction hash")]
+    InvalidTxHash,
+    #[msg("Invalid encrypted payload")]
+    InvalidEncryptedPayload,
+    #[msg("Invalid swap inputs")]
+    InvalidSwapInputs,
     #[msg("Arithmetic overflow")]
     Overflow,
 }

@@ -237,6 +237,40 @@ CREATE INDEX IF NOT EXISTS idx_btc_deposits_solana_address ON btc_deposits(solan
 CREATE TRIGGER update_btc_deposits_updated_at BEFORE UPDATE ON btc_deposits
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- BTC Deposit Address Allocations
+-- Issues unique deposit addresses per user/session derived from bridge xpub
+CREATE SEQUENCE IF NOT EXISTS btc_deposit_address_index_seq START 0;
+
+CREATE TABLE IF NOT EXISTS btc_deposit_addresses (
+    id SERIAL PRIMARY KEY,
+    allocation_id UUID NOT NULL UNIQUE,
+    solana_address VARCHAR(44) NOT NULL,
+    bitcoin_address VARCHAR(255) NOT NULL UNIQUE,
+    derivation_index BIGINT NOT NULL UNIQUE DEFAULT nextval('btc_deposit_address_index_seq'),
+    derivation_path VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'allocated',
+    session_id VARCHAR(128),
+    client_label VARCHAR(64),
+    metadata JSONB,
+    expires_at TIMESTAMP,
+    funded_tx_hash VARCHAR(64),
+    funded_amount_satoshis BIGINT,
+    funded_at TIMESTAMP,
+    claimed_tx_hash VARCHAR(64),
+    solana_tx_signature VARCHAR(88),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_btc_deposit_addresses_allocation ON btc_deposit_addresses(allocation_id);
+CREATE INDEX IF NOT EXISTS idx_btc_deposit_addresses_solana ON btc_deposit_addresses(solana_address);
+CREATE INDEX IF NOT EXISTS idx_btc_deposit_addresses_status ON btc_deposit_addresses(status);
+CREATE INDEX IF NOT EXISTS idx_btc_deposit_addresses_expires ON btc_deposit_addresses(expires_at);
+
+CREATE TRIGGER update_btc_deposit_addresses_updated_at
+BEFORE UPDATE ON btc_deposit_addresses
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- BTC Withdrawals Table
 -- Tracks all outgoing BTC transactions for complete audit trail
 -- Ensures ingoings align with outgoings for verifiability

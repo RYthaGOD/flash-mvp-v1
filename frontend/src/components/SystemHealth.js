@@ -97,13 +97,6 @@ const SystemHealth = () => {
     return (parseInt(satoshis) / 100000000).toFixed(8);
   };
 
-  const formatZEC = (balance) => {
-    if (!balance) return '0.00000000';
-    // Handle both string and BigInt formats
-    const numBalance = typeof balance === 'string' ? parseInt(balance) : parseInt(balance.toString());
-    return (numBalance / 100000000).toFixed(8);
-  };
-
   if (loading) {
     return (
       <motion.div
@@ -241,7 +234,7 @@ const SystemHealth = () => {
           </div>
         </motion.div>
 
-        {/* ZEC Reserve */}
+        {/* SOL Treasury */}
         <motion.div
           className="health-item reserve"
           initial={{ opacity: 0, x: -20 }}
@@ -249,12 +242,17 @@ const SystemHealth = () => {
           transition={{ delay: 0.6 }}
         >
           <div className="item-header">
-            <span className="reserve-icon">🛡️</span>
-            <span className="item-label">ZEC Treasury</span>
+            <span className="reserve-icon">◎</span>
+            <span className="item-label">SOL Treasury</span>
           </div>
           <div className="item-value">
-            {formatZEC(reserves?.zec?.balance)} ZEC
+            {bridgeInfo?.treasuryBalanceSOL
+              ? `${bridgeInfo.treasuryBalanceSOL.toFixed(3)} SOL`
+              : 'Fund relayer wallet'}
           </div>
+          <p className="helper-text" style={{ marginTop: '0.5rem' }}>
+            Run `send-sol-from-treasury.js --status` in /backend to inspect the relayer balance.
+          </p>
         </motion.div>
       </div>
 

@@ -102,6 +102,7 @@ beforeEach(() => {
   databaseService.getSwapTransaction = jest.fn().mockResolvedValue(null);
   databaseService.getBurnTransaction = jest.fn().mockResolvedValue(null);
   databaseService.getTransactionsByAddress = jest.fn().mockResolvedValue([]);
+  databaseService.saveBTCDeposit = jest.fn().mockResolvedValue();
   
   // Mock Solana service
   solanaService.getConnection = jest.fn().mockReturnValue({
@@ -125,6 +126,12 @@ beforeEach(() => {
     confirmations: 6
   });
   bitcoinService.isValidAddress = jest.fn().mockReturnValue(true);
+  bitcoinService.supportsDepositAllocations = jest.fn().mockReturnValue(false);
+  bitcoinService.markAllocationFunded = jest.fn().mockResolvedValue();
+  bitcoinService.markAllocationClaimed = jest.fn().mockResolvedValue();
+  bitcoinService.getOrCreateDepositAllocation = jest.fn();
+  bitcoinService.assertAllocationForAddress = jest.fn();
+  bitcoinService.bridgeAddress = 'tb1qtest';
   
   // Mock Zcash service
   zcashService.getNetworkInfo = jest.fn().mockResolvedValue({

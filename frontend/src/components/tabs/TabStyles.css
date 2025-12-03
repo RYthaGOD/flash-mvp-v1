@@ -63,12 +63,24 @@
 .glass-card,
 .info-card,
 .action-card {
-  border-radius: 26px;
+  border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(155deg, rgba(10, 10, 12, 0.9), rgba(5, 5, 6, 0.55));
-  box-shadow: var(--shadow-soft);
+  box-shadow: 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 12px 32px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(24px);
-  padding: 1.75rem;
+  padding: 1.5rem;
+  transition: all 0.25s ease;
+}
+
+.glass-card:hover,
+.info-card:hover,
+.action-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 16px 40px rgba(0, 0, 0, 0.5);
 }
 
 .glass-card.compact {
@@ -81,18 +93,46 @@
 }
 
 .glass-card h3,
+.info-card h3,
+.action-card h3,
 .card-title {
   margin-top: 0;
   margin-bottom: 0.75rem;
-  font-size: 1.2rem;
+  font-size: 1rem;
   color: var(--color-primary);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  font-weight: 600;
 }
 
-.glass-card p {
+.glass-card p,
+.info-card p,
+.action-card p {
   color: var(--color-text-muted);
   line-height: 1.6;
+  margin: 0;
+}
+
+/* Feature List - Unified Style */
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0 0;
+}
+
+.feature-list li {
+  padding: 0.6rem 0;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  line-height: 1.5;
+}
+
+.feature-list li:last-child {
+  border-bottom: none;
 }
 
 .two-column {
@@ -507,28 +547,39 @@
 
 .message {
   padding: 1.25rem;
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(18px);
 }
 
+.message p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.info-message {
+  border-color: rgba(59, 130, 246, 0.25);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.02));
+  color: #93c5fd;
+}
+
 .success-message {
-  border-color: rgba(245, 194, 86, 0.4);
-  background: rgba(245, 194, 86, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.03));
   color: var(--color-text-primary);
 }
 
 .error-message {
-  border-color: rgba(255, 77, 103, 0.45);
-  background: rgba(255, 77, 103, 0.08);
-  color: var(--color-text-primary);
+  border-color: rgba(239, 68, 68, 0.3);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.03));
+  color: #fca5a5;
 }
 
 .warning-message {
-  border-color: rgba(255, 166, 0, 0.4);
-  background: rgba(255, 166, 0, 0.08);
-  color: var(--color-text-primary);
+  border-color: rgba(245, 158, 11, 0.3);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.03));
+  color: #fcd34d;
 }
 
 .result-details {
@@ -693,14 +744,17 @@
   }
 }
 
-/* Wallet Generator Modal Styles */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Modal Styles - Dark Theme
+   ═══════════════════════════════════════════════════════════════════════════ */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.8);
+  background-color: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -709,19 +763,22 @@
 }
 
 .modal-content {
-  background: white;
-  border-radius: 12px;
+  background: linear-gradient(155deg, rgba(18, 18, 22, 0.98), rgba(8, 8, 10, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
   padding: 0;
   max-width: 800px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  box-shadow: 
+    0 25px 80px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .modal-header {
-  padding: 24px;
-  border-bottom: 1px solid #eee;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -729,38 +786,40 @@
 
 .modal-header h2 {
   margin: 0;
-  color: #333;
-  font-size: 1.5rem;
+  color: var(--color-text-primary);
+  font-size: 1.4rem;
+  font-weight: 600;
 }
 
 .close-button {
-  background: none;
-  border: none;
-  font-size: 24px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 1.25rem;
   cursor: pointer;
-  color: #666;
+  color: var(--color-text-muted);
   padding: 0;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  transition: background-color 0.2s;
+  border-radius: 10px;
+  transition: all 0.2s ease;
 }
 
 .close-button:hover {
-  background-color: #f0f0f0;
-  color: #333;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-primary);
 }
 
 .modal-body {
-  padding: 24px;
+  padding: 2rem;
 }
 
 .modal-footer {
-  padding: 24px;
-  border-top: 1px solid #eee;
+  padding: 1.5rem 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: flex-end;
   gap: 12px;
@@ -773,57 +832,62 @@
 
 .generator-intro {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
 
 .generator-intro p {
-  font-size: 1.1rem;
-  color: #666;
-  margin-bottom: 24px;
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
 }
 
 .security-notice {
-  background: #fff3cd;
-  border: 1px solid #ffeaa7;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 24px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.03));
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 14px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 .security-notice h4 {
-  color: #856404;
+  color: #fcd34d;
   margin-top: 0;
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .security-notice ul {
   margin: 0;
-  padding-left: 20px;
-  color: #856404;
+  padding-left: 1.25rem;
+  color: var(--color-text-muted);
 }
 
 .security-notice li {
-  margin-bottom: 4px;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
 }
 
 .generate-button {
-  font-size: 1.2rem !important;
-  padding: 16px 32px !important;
+  font-size: 1.1rem !important;
+  padding: 1rem 2rem !important;
 }
 
 .loading-state {
   text-align: center;
-  padding: 40px;
+  padding: 3rem;
 }
 
 .spinner {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #DC143C;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top: 3px solid var(--color-primary);
   border-radius: 50%;
   width: 40px;
   height: 40px;
   animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
+  margin: 0 auto 1rem;
 }
 
 @keyframes spin {
@@ -832,172 +896,294 @@
 }
 
 .wallets-display h3 {
-  color: #28a745;
+  color: var(--color-success);
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
 }
 
 .wallets-display > p {
   text-align: center;
-  color: #666;
-  margin-bottom: 32px;
+  color: var(--color-text-muted);
+  margin-bottom: 2rem;
 }
 
 .wallet-card {
-  border: 2px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 24px;
-  background: #f8f9fa;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  background: rgba(255, 255, 255, 0.02);
 }
 
-.bitcoin-wallet {
-  border-color: #f7931a;
-  background: linear-gradient(135deg, #f7931a10, #f7931a05);
+.wallet-card.bitcoin-wallet {
+  border-color: rgba(247, 147, 26, 0.3);
+  background: linear-gradient(135deg, rgba(247, 147, 26, 0.08), rgba(247, 147, 26, 0.02));
 }
 
-.zcash-wallet {
-  border-color: #f4b728;
-  background: linear-gradient(135deg, #f4b72810, #f4b72805);
+.wallet-card.zcash-wallet {
+  border-color: rgba(244, 183, 40, 0.3);
+  background: linear-gradient(135deg, rgba(244, 183, 40, 0.08), rgba(244, 183, 40, 0.02));
 }
 
-.solana-wallet {
-  border-color: #9945ff;
-  background: linear-gradient(135deg, #9945ff10, #9945ff05);
+.wallet-card.solana-wallet {
+  border-color: rgba(153, 69, 255, 0.3);
+  background: linear-gradient(135deg, rgba(153, 69, 255, 0.08), rgba(153, 69, 255, 0.02));
 }
 
-.wallet-header {
+.wallet-card .wallet-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 1rem;
 }
 
-.wallet-header h4 {
+.wallet-card .wallet-header h4 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
+  color: var(--color-text-primary);
 }
 
 .explorer-link {
-  color: #007bff;
+  color: var(--color-primary);
   text-decoration: none;
-  font-size: 0.9rem;
-  padding: 4px 8px;
-  border: 1px solid #007bff;
-  border-radius: 4px;
-  transition: all 0.2s;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid rgba(231, 178, 64, 0.3);
+  border-radius: 8px;
+  transition: all 0.2s ease;
 }
 
 .explorer-link:hover {
-  background: #007bff;
-  color: white;
+  background: rgba(231, 178, 64, 0.1);
+  border-color: var(--color-primary);
 }
 
 .wallet-address,
 .wallet-private-key {
-  margin-bottom: 16px;
+  margin-bottom: 1rem;
 }
 
 .wallet-address label,
 .wallet-private-key label {
   display: block;
   font-weight: 600;
-  margin-bottom: 8px;
-  color: #333;
+  margin-bottom: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .address-display,
 .key-display {
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
   align-items: center;
 }
 
 .address-display code {
   flex: 1;
-  background: white;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 0.9rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
   word-break: break-all;
+  color: var(--color-text-primary);
 }
 
 .key-display input {
   flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--color-text-primary);
 }
 
 .key-display button {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  background: white;
-  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
   cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
+  font-size: 0.85rem;
+  color: var(--color-text-primary);
+  transition: all 0.2s ease;
 }
 
 .key-display button:hover {
-  background: #f8f9fa;
-  border-color: #ccc;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .next-steps {
-  background: #e7f3ff;
-  border: 1px solid #b3d9ff;
-  border-radius: 8px;
-  padding: 20px;
-  margin-top: 24px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.03));
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 14px;
+  padding: 1.25rem;
+  margin-top: 1.5rem;
 }
 
 .next-steps h4 {
-  color: #0066cc;
+  color: #93c5fd;
   margin-top: 0;
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .next-steps ol {
   margin: 0;
-  padding-left: 20px;
+  padding-left: 1.25rem;
 }
 
 .next-steps li {
-  margin-bottom: 8px;
-  color: #0066cc;
+  margin-bottom: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
 }
 
 .wallet-generator-section {
-  border: 2px solid #ff6b35;
-  border-radius: 8px;
-  padding: 20px;
-  background: linear-gradient(135deg, #ff6b3510, #ff6b3505);
+  border: 1px solid rgba(231, 178, 64, 0.3);
+  border-radius: 16px;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(231, 178, 64, 0.08), rgba(231, 178, 64, 0.02));
 }
 
 .wallet-generator-section .info-message {
-  background: #fff3cd;
-  border-color: #ffeaa7;
-  color: #856404;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.03));
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #fcd34d;
 }
 
 .wallet-generator-section .success-message {
-  background: #d4edda;
-  border-color: #c3e6cb;
-  color: #155724;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.03));
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
 }
 
 .demo-button {
-  animation: pulse 2s infinite;
+  animation: buttonPulse 2s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+@keyframes buttonPulse {
+  0%, 100% { 
+    transform: scale(1);
+    box-shadow: 0 8px 24px rgba(231, 178, 64, 0.25);
+  }
+  50% { 
+    transform: scale(1.02);
+    box-shadow: 0 12px 32px rgba(231, 178, 64, 0.35);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Transaction List Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+.transactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.transaction-item {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+}
+
+.transaction-item:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.transaction-item.transaction-error {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05), transparent);
+}
+
+.transaction-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.transaction-signature {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.transaction-signature a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.transaction-signature a:hover {
+  color: var(--color-secondary);
+  text-decoration: underline;
+}
+
+.transaction-status {
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.transaction-status.status-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--color-success);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.transaction-status.status-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.transaction-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.transaction-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.transaction-detail:last-child {
+  border-bottom: none;
+}
+
+.transaction-detail .detail-label {
+  color: var(--color-text-muted);
+}
+
+.transaction-detail .detail-value {
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+}
+
+.transaction-detail .error-text {
+  color: #fca5a5;
 }
 

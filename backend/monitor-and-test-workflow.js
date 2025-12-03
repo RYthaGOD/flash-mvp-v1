@@ -6,7 +6,7 @@
  * Records all logs for analysis
  */
 
-const axios = require('axios');
+const axios = require('./axiosClient');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();

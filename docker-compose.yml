@@ -1,0 +1,183 @@
+# =============================================================================
+# FLASH Bridge - Production Docker Compose
+# =============================================================================
+# One-command deployment: docker-compose up -d
+#
+# Prerequisites:
+# 1. Copy backend/env-template.txt to backend/.env and fill in values
+# 2. Copy frontend/env-template.txt to frontend/.env and fill in values
+# 3. Ensure PostgreSQL and Redis are running (or use services below)
+# 4. For Arcium MPC: Either use local Arcium node or connect to remote
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # Arcium MPC Node (Privacy-Preserving Computation)
+  # ===========================================================================
+  # NOTE: Arcium node requires native installation for full functionality.
+  # This service provides a placeholder for the Arcium node endpoint.
+  # For production, you should:
+  # 1. Install Arcium locally: curl -sSfL https://install.arcium.com | bash
+  # 2. Run: arcium localnet (for development)
+  # 3. Or connect to Arcium devnet/mainnet
+  # ===========================================================================
+  arcium-node:
+    image: alpine:latest
+    container_name: flash-arcium-node
+    restart: unless-stopped
+    # This is a placeholder that will be replaced with actual Arcium node
+    # For now, it provides a network endpoint for the backend to connect to
+    command: >
+      sh -c "
+        echo '🔒 Arcium MPC Node Placeholder';
+        echo '   For real MPC, install Arcium locally or use devnet';
+        echo '   See: https://docs.arcium.com/';
+        echo '';
+        echo '   Starting HTTP endpoint on port 8080...';
+        while true; do
+          echo -e 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"placeholder\",\"message\":\"Install real Arcium node for MPC\"}' | nc -l -p 8080 -q 1 2>/dev/null || sleep 1;
+        done
+      "
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - flash-network
+
+  # ===========================================================================
+  # PostgreSQL Database
+  # ===========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: flash-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-flash_bridge}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-flash_bridge_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-flash_bridge}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flash-network
+
+  # ===========================================================================
+  # Redis (for distributed rate limiting)
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: flash-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flash-network
+
+  # ===========================================================================
+  # Backend API
+  # ===========================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: flash-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      arcium-node:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override database connection for Docker networking
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379
+      # Arcium MPC node connection (Docker internal networking)
+      ARCIUM_ENDPOINT: http://arcium-node:8080
+      # Enable Arcium MPC
+      ENABLE_ARCIUM_MPC: "true"
+      # Ensure production mode
+      NODE_ENV: production
+    ports:
+      - "3001:3001"
+    volumes:
+      # Mount keys directory (create and add your keypair)
+      - ./keys:/app/keys:ro
+      - backend_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - flash-network
+
+  # ===========================================================================
+  # Frontend (React)
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:3001}
+        REACT_APP_SOLANA_NETWORK: ${REACT_APP_SOLANA_NETWORK:-devnet}
+    container_name: flash-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - flash-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  flash-network:
+    driver: bridge
+

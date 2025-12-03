@@ -1,4 +1,9 @@
 const axios = require('axios');
+const bitcoin = require('bitcoinjs-lib');
+const ecc = require('tiny-secp256k1');
+const { BIP32Factory } = require('bip32');
+const bip32 = BIP32Factory(ecc);
+const { randomUUID } = require('crypto');
 const databaseService = require('./database');
 
 /**
@@ -67,16 +72,31 @@ class CircuitBreaker {
  */
 class BitcoinService {
   constructor() {
-    const defaultNetwork = process.env.BITCOIN_NETWORK || 'testnet';
-    this.network = defaultNetwork;
-    this.bridgeAddress = process.env.BITCOIN_BRIDGE_ADDRESS || 'tb1qug4w70zdr40clj9qecy67tx58e24lk90whzy9l';
-    const defaultExplorer =
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    // Network configuration
+    this.network = process.env.BITCOIN_NETWORK || 'testnet';
+    
+    // Bridge address - required in production, optional for dev
+    this.bridgeAddress = process.env.BITCOIN_BRIDGE_ADDRESS;
+    if (!this.bridgeAddress) {
+      if (isProduction) {
+        throw new Error('BITCOIN_BRIDGE_ADDRESS is required in production');
+      }
+      console.warn('⚠️  BITCOIN_BRIDGE_ADDRESS not set - BTC deposit monitoring disabled');
+      this.bridgeAddress = null;
+    }
+    
+    // Explorer URL with defaults
+    this.explorerUrl = process.env.BITCOIN_EXPLORER_URL || (
       this.network === 'mainnet'
         ? 'https://blockstream.info/api'
-        : 'https://blockstream.info/testnet/api';
-    this.explorerUrl = process.env.BITCOIN_EXPLORER_URL || defaultExplorer;
-    if (this.network === 'mainnet' && !process.env.BITCOIN_NETWORK) {
-      console.warn('⚠️  BITCOIN_NETWORK not set. Defaulting to mainnet - ensure this is intentional.');
+        : 'https://blockstream.info/testnet/api'
+    );
+    
+    console.log(`✅ Bitcoin service: ${this.network.toUpperCase()}`);
+    if (this.bridgeAddress) {
+      console.log(`   Bridge address: ${this.bridgeAddress.substring(0, 15)}...`);
     }
 
     this.currentReserve = 0; // BTC in satoshis
@@ -93,6 +113,20 @@ class BitcoinService {
       this.requiredConfirmations = 1; // Minimum 1 confirmation
     }
 
+    this.bridgeXpub = (process.env.BITCOIN_BRIDGE_XPUB || '').trim() || null;
+    this.depositBasePath =
+      process.env.BITCOIN_DEPOSIT_DERIVATION_PATH ||
+      (this.network === 'mainnet' ? "m/84'/0'/0'" : "m/84'/1'/0'");
+    this.depositChangeIndex = Math.max(
+      0,
+      parseInt(process.env.BITCOIN_DEPOSIT_CHANGE_INDEX || '0', 10)
+    );
+    this.depositTtlMinutes = Math.max(
+      0,
+      parseInt(process.env.BITCOIN_DEPOSIT_TTL_MINUTES || '180', 10)
+    );
+    this.cachedXpubNode = null;
+
     // Circuit breaker for API calls
     this.apiCircuitBreaker = new CircuitBreaker(5, 60000, 10000);
 
@@ -100,6 +134,214 @@ class BitcoinService {
     this.lastApiCall = Date.now();
     this.apiCallCount = 0;
     this.apiErrorCount = 0;
+  }
+
+  getBitcoinNetworkParams() {
+    return this.network === 'mainnet'
+      ? bitcoin.networks.bitcoin
+      : bitcoin.networks.testnet;
+  }
+
+  supportsDepositAllocations() {
+    return Boolean(this.bridgeXpub && databaseService.isConnected());
+  }
+
+  getDepositRootNode() {
+    if (!this.bridgeXpub) {
+      throw new Error('BITCOIN_BRIDGE_XPUB is not configured');
+    }
+
+    if (!this.cachedXpubNode) {
+      try {
+        this.cachedXpubNode = bip32.fromBase58(this.bridgeXpub, this.getBitcoinNetworkParams());
+      } catch (error) {
+        console.error('Failed to parse BITCOIN_BRIDGE_XPUB:', error.message);
+        throw new Error('Invalid BITCOIN_BRIDGE_XPUB provided');
+      }
+    }
+
+    return this.cachedXpubNode;
+  }
+
+  buildDerivationPath(derivationIndex, changeIndex = this.depositChangeIndex) {
+    return `${this.depositBasePath}/${changeIndex}/${derivationIndex}`;
+  }
+
+  deriveDepositAddress(derivationIndex, changeIndex = this.depositChangeIndex) {
+    const rootNode = this.getDepositRootNode();
+    const networkParams = this.getBitcoinNetworkParams();
+
+    let changeNode;
+    try {
+      changeNode = rootNode.derive(changeIndex);
+    } catch (error) {
+      console.error('Failed to derive change node for BTC deposit address:', error.message);
+      throw new Error('Unable to derive BTC deposit address (change index)');
+    }
+
+    let addressNode;
+    try {
+      addressNode = changeNode.derive(derivationIndex);
+    } catch (error) {
+      console.error('Failed to derive index node for BTC deposit address:', error.message);
+      throw new Error('Unable to derive BTC deposit address (index derivation)');
+    }
+
+    const payment = bitcoin.payments.p2wpkh({
+      pubkey: addressNode.publicKey,
+      network: networkParams,
+    });
+
+    if (!payment.address) {
+      throw new Error('Derived BTC deposit address is invalid');
+    }
+
+    return {
+      address: payment.address,
+      derivationPath: this.buildDerivationPath(derivationIndex, changeIndex),
+    };
+  }
+
+  normalizeAllocationRow(row) {
+    if (!row) {
+      return null;
+    }
+
+    let metadata = row.metadata;
+    if (metadata && typeof metadata === 'string') {
+      try {
+        metadata = JSON.parse(metadata);
+      } catch {
+        metadata = null;
+      }
+    }
+
+    const toIso = (value) =>
+      value instanceof Date
+        ? value.toISOString()
+        : value
+        ? new Date(value).toISOString()
+        : null;
+
+    return {
+      id: row.id,
+      allocationId: row.allocation_id || row.allocationId,
+      solanaAddress: row.solana_address || row.solanaAddress,
+      bitcoinAddress: row.bitcoin_address || row.bitcoinAddress,
+      derivationIndex: row.derivation_index ?? row.derivationIndex,
+      derivationPath: row.derivation_path || row.derivationPath,
+      status: row.status,
+      sessionId: row.session_id || row.sessionId,
+      clientLabel: row.client_label || row.clientLabel,
+      metadata: metadata || null,
+      expiresAt: toIso(row.expires_at || row.expiresAt),
+      fundedTxHash: row.funded_tx_hash || row.fundedTxHash,
+      fundedAmountSatoshis: row.funded_amount_satoshis ?? row.fundedAmountSatoshis ?? null,
+      fundedAt: toIso(row.funded_at || row.fundedAt),
+      claimedTxHash: row.claimed_tx_hash || row.claimedTxHash,
+      solanaTxSignature: row.solana_tx_signature || row.solanaTxSignature,
+      createdAt: toIso(row.created_at || row.createdAt),
+      updatedAt: toIso(row.updated_at || row.updatedAt),
+    };
+  }
+
+  async getOrCreateDepositAllocation({
+    solanaAddress,
+    sessionId,
+    clientLabel,
+    forceNew = false,
+    metadata = null,
+  }) {
+    if (!this.supportsDepositAllocations()) {
+      throw new Error('Per-user BTC deposit addresses not available (missing database or BITCOIN_BRIDGE_XPUB)');
+    }
+
+    if (!forceNew) {
+      const existing = await databaseService.findActiveBTCDepositAllocation(solanaAddress);
+      if (existing) {
+        return this.normalizeAllocationRow(existing);
+      }
+    }
+
+    const derivationIndex = await databaseService.getNextBTCDepositAddressIndex();
+    const { address, derivationPath } = this.deriveDepositAddress(derivationIndex);
+    const expiresAt =
+      this.depositTtlMinutes > 0
+        ? new Date(Date.now() + this.depositTtlMinutes * 60 * 1000)
+        : null;
+
+    const allocation = await databaseService.createBTCDepositAllocation({
+      allocationId: randomUUID(),
+      solanaAddress,
+      bitcoinAddress: address,
+      derivationIndex,
+      derivationPath,
+      status: 'allocated',
+      sessionId,
+      clientLabel,
+      metadata,
+      expiresAt,
+    });
+
+    return this.normalizeAllocationRow(allocation);
+  }
+
+  async getDepositAllocation(allocationId) {
+    if (!this.supportsDepositAllocations()) {
+      throw new Error('Per-user BTC deposit addresses not available');
+    }
+
+    const allocation = await databaseService.getBTCDepositAllocationById(allocationId);
+    return this.normalizeAllocationRow(allocation);
+  }
+
+  async assertAllocationForAddress(allocationId, solanaAddress) {
+    const allocation = await this.getDepositAllocation(allocationId);
+    if (!allocation) {
+      throw new Error('Deposit allocation not found');
+    }
+
+    if (allocation.solanaAddress !== solanaAddress) {
+      throw new Error('Deposit allocation does not belong to this Solana address');
+    }
+
+    if (
+      allocation.status === 'claimed' ||
+      allocation.status === 'cancelled' ||
+      allocation.status === 'expired'
+    ) {
+      throw new Error(`Deposit allocation is no longer valid (status: ${allocation.status})`);
+    }
+
+    if (
+      allocation.expiresAt &&
+      Date.parse(allocation.expiresAt) < Date.now() &&
+      allocation.status === 'allocated'
+    ) {
+      throw new Error('Deposit allocation has expired. Request a new BTC address.');
+    }
+
+    return allocation;
+  }
+
+  async markAllocationFunded(allocationId, { txHash, amountSatoshis }) {
+    const updated = await databaseService.markBTCDepositAllocationFunded(allocationId, {
+      txHash,
+      amountSatoshis,
+      fundedAt: new Date(),
+    });
+
+    return this.normalizeAllocationRow(updated);
+  }
+
+  async markAllocationClaimed(allocationId, { txHash, solanaTxSignature }) {
+    const updated = await databaseService.markBTCDepositAllocationClaimed(allocationId, {
+      claimedTxHash: txHash,
+      solanaTxSignature,
+      status: 'claimed',
+    });
+
+    return this.normalizeAllocationRow(updated);
   }
 
   /**
@@ -574,28 +816,50 @@ class BitcoinService {
   }
 
   /**
-   * Extract amount sent to specific address from transaction
+   * Extract detailed amount information for specific addresses
    */
-  extractAmountToAddress(tx, address) {
+  extractAmountDetails(tx, addresses) {
     if (!tx.vout) {
       console.log(`[BTC Monitor] ⚠️  TX ${tx.txid?.substring(0, 16)}... has no vout field`);
-      return 0;
+      return { totalAmount: 0, matchedAddresses: [] };
     }
 
-    const matchingOutputs = tx.vout.filter(output => output.scriptpubkey_address === address);
+    const normalizedAddresses = Array.isArray(addresses) ? addresses.filter(Boolean) : [addresses];
+    const uniqueAddresses = [...new Set(normalizedAddresses)];
+
+    const matchingOutputs = tx.vout.filter(output =>
+      uniqueAddresses.includes(output.scriptpubkey_address)
+    );
+
     const totalAmount = matchingOutputs.reduce((sum, output) => sum + output.value, 0);
-    
+    const matchedAddresses = matchingOutputs
+      .map((output) => output.scriptpubkey_address)
+      .filter(Boolean);
+
     if (matchingOutputs.length > 0) {
-      console.log(`[BTC Monitor] Found ${matchingOutputs.length} output(s) to bridge address, total: ${totalAmount / 100000000} BTC`);
+      console.log(
+        `[BTC Monitor] Found ${matchingOutputs.length} output(s) to monitored address(es), total: ${totalAmount / 100000000} BTC`
+      );
     } else {
-      console.log(`[BTC Monitor] ⚠️  TX ${tx.txid?.substring(0, 16)}... has ${tx.vout.length} outputs but none match bridge address ${address}`);
-      // Log all output addresses for debugging
+      console.log(
+        `[BTC Monitor] ⚠️  TX ${tx.txid?.substring(0, 16)}... has ${
+          tx.vout.length
+        } outputs but none match monitored addresses ${uniqueAddresses.join(', ')}`
+      );
       const outputAddresses = tx.vout.map(v => v.scriptpubkey_address).filter(Boolean);
       if (outputAddresses.length > 0) {
         console.log(`[BTC Monitor] Output addresses: ${outputAddresses.join(', ')}`);
       }
     }
 
+    return { totalAmount, matchedAddresses };
+  }
+
+  /**
+   * Extract amount sent to specific address(es) from transaction
+   */
+  extractAmountToAddress(tx, address) {
+    const { totalAmount } = this.extractAmountDetails(tx, address);
     return totalAmount;
   }
 
@@ -603,36 +867,56 @@ class BitcoinService {
    * Verify Bitcoin payment
    * @param {string} txHash - Transaction hash
    * @param {number} expectedAmount - Expected amount in BTC (will be converted to satoshis)
+   * @param {Object} options - Additional verification options
    * @returns {Promise<Object>} Verification result
    */
-  async verifyBitcoinPayment(txHash, expectedAmount) {
+  async verifyBitcoinPayment(txHash, expectedAmount, options = {}) {
     try {
       console.log(`Verifying BTC transaction: ${txHash}, expected amount: ${expectedAmount}`);
+
+      const {
+        expectedAddress = null,
+        allowedAddresses = [],
+        minConfirmations = this.requiredConfirmations,
+      } = options;
+
+      const addressSet = new Set();
+      if (expectedAddress) {
+        addressSet.add(expectedAddress);
+      }
+      if (allowedAddresses && Array.isArray(allowedAddresses)) {
+        allowedAddresses.filter(Boolean).forEach(addr => addressSet.add(addr));
+      }
+      if (addressSet.size === 0 && this.bridgeAddress) {
+        addressSet.add(this.bridgeAddress);
+      }
+
+      const targetAddresses = Array.from(addressSet);
 
       let tx;
       try {
         tx = await this.getTransaction(txHash);
       } catch (apiError) {
-        console.warn(`BTC API error for ${txHash}:`, apiError.message, apiError.response?.status);
-        // For demo purposes, accept transactions if API fails or returns certain errors
-        if (apiError.response?.status === 503 || apiError.response?.status === 429 ||
-            apiError.response?.status === 400 || apiError.message?.includes('server error')) {
-          console.log('BTC API issue, accepting transaction for demo purposes');
-          return {
-            verified: true,
-            amountBTC: expectedAmount,
-            confirmations: 1,
-            txHash: txHash,
-            reason: 'Accepted via demo fallback (API issue)'
-          };
-        }
-        // If it's a 404 (transaction not found), that's a real error
+        console.error(`BTC API error for ${txHash}:`, apiError.message, apiError.response?.status);
+        
+        // PRODUCTION MODE: No fallbacks - all transactions must be verified
         if (apiError.response?.status === 404) {
           return {
             verified: false,
             reason: 'Transaction not found on blockchain',
           };
         }
+        
+        // For temporary API issues, return explicit error (no auto-accept)
+        if (apiError.response?.status === 503 || apiError.response?.status === 429) {
+          return {
+            verified: false,
+            reason: `Bitcoin API temporarily unavailable (${apiError.response?.status}). Try again later.`,
+            retryable: true,
+          };
+        }
+        
+        // Re-throw other errors
         throw apiError;
       }
 
@@ -645,7 +929,7 @@ class BitcoinService {
       }
 
       // Check if transaction is confirmed (allow unconfirmed for demo with 0 required confirmations)
-      const requiresConfirmation = this.requiredConfirmations > 0;
+      const requiresConfirmation = minConfirmations > 0;
       if (requiresConfirmation && (!tx.status || !tx.status.block_height)) {
         return {
           verified: false,
@@ -667,22 +951,24 @@ class BitcoinService {
         }
       }
       
-      if (confirmations < this.requiredConfirmations && this.requiredConfirmations > 0) {
+      if (confirmations < minConfirmations && minConfirmations > 0) {
         return {
           verified: false,
           reason: 'Insufficient confirmations',
           confirmations,
-          required: this.requiredConfirmations,
+          required: minConfirmations,
         };
       }
 
-      // Check if payment is to bridge address
-      const amount = this.extractAmountToAddress(tx, this.bridgeAddress);
+      // Check if payment is to expected deposit address
+      const amountDetails = this.extractAmountDetails(tx, targetAddresses);
+      const amount = amountDetails.totalAmount;
 
       if (amount === 0) {
         return {
           verified: false,
-          reason: 'Payment not to bridge address',
+          reason: 'Payment not to expected bridge address',
+          expectedAddresses: targetAddresses,
         };
       }
 
@@ -716,6 +1002,8 @@ class BitcoinService {
         confirmations,
         blockHeight: tx.status.block_height,
         timestamp: tx.status.block_time,
+        matchedAddresses: amountDetails.matchedAddresses,
+        expectedAddresses: targetAddresses,
       };
     } catch (error) {
       console.error('Error verifying Bitcoin payment:', error);

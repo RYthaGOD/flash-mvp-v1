@@ -23,10 +23,18 @@ class ArciumService {
     this.computationTimeout = parseInt(process.env.ARCIUM_COMPUTATION_TIMEOUT) || 30000;
     this.maxRetries = parseInt(process.env.ARCIUM_MAX_RETRIES) || 3;
 
-    // Core settings
+    // Core settings - configurable via environment
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     this.mpcEnabled = process.env.ENABLE_ARCIUM_MPC !== 'false';
-    this.isSimulated = process.env.ARCIUM_SIMULATED !== 'false'; // Default to simulated for MVP
-    this.useRealSDK = process.env.ARCIUM_USE_REAL_SDK === 'true';
+    this.isSimulated = isProduction ? false : process.env.ARCIUM_SIMULATED !== 'false';
+    this.useRealSDK = isProduction ? true : process.env.ARCIUM_USE_REAL_SDK === 'true';
+    
+    if (isProduction && this.isSimulated) {
+      console.warn('⚠️  WARNING: Simulation mode is disabled in production');
+      this.isSimulated = false;
+      this.useRealSDK = true;
+    }
 
     // Performance and reliability
     this.computationCache = new Map();
@@ -100,8 +108,8 @@ class ArciumService {
       errors.push('ARCIUM_ENDPOINT is required');
     }
 
-    if (this.useRealSDK && !this.apiKey) {
-      errors.push('ARCIUM_API_KEY is required when using real SDK');
+    if (this.useRealSDK && !this.apiKey && !this.arciumEndpoint.includes('localhost') && !this.arciumEndpoint.includes('127.0.0.1')) {
+      errors.push('ARCIUM_API_KEY is required when using real SDK (optional for localhost testing)');
     }
 
     // MXE Program Mode: When using Solana program directly (not simulated, not full SDK)
@@ -208,10 +216,11 @@ class ArciumService {
       
     } catch (error) {
       console.error('❌ Failed to initialize real Arcium SDK:', error);
-      console.warn('⚠️  Falling back to enhanced simulation mode');
-      this.isSimulated = true;
-      this.connected = true;
-      throw error;
+      console.error('❌ PRODUCTION MODE: Simulation fallback is DISABLED');
+      console.error('❌ Ensure Arcium node is running and properly configured');
+      this.isSimulated = false;
+      this.connected = false;
+      throw new Error(`Arcium MPC initialization failed - simulation disabled in production: ${error.message}`);
     }
   }
 
@@ -220,11 +229,14 @@ class ArciumService {
    */
   async _verifyArciumConnection() {
     try {
-      // Check if Solana connection is available
+      // Step 1: Check HTTP endpoint connectivity to Arcium node
+      await this._checkArciumNodeHealth();
+      
+      // Step 2: Check if Solana connection is available
       const solanaService = require('./solana');
       const connection = solanaService.getConnection();
       
-      // Verify program exists
+      // Step 3: Verify program exists
       if (process.env.FLASH_BRIDGE_MXE_PROGRAM_ID) {
         const { PublicKey } = require('@solana/web3.js');
         const programId = new PublicKey(process.env.FLASH_BRIDGE_MXE_PROGRAM_ID);
@@ -245,6 +257,60 @@ class ArciumService {
     } catch (error) {
       console.error('❌ Arcium connection verification failed:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Check Arcium node HTTP endpoint health
+   */
+  async _checkArciumNodeHealth() {
+    const axios = require('axios');
+    const endpoint = this.arciumEndpoint;
+    
+    console.log(`🔍 Checking Arcium node health at ${endpoint}...`);
+    
+    try {
+      const response = await axios.get(`${endpoint}/health`, {
+        timeout: 5000,
+        validateStatus: () => true, // Accept any status
+      });
+      
+      if (response.status >= 200 && response.status < 300) {
+        console.log(`✅ Arcium node is healthy at ${endpoint}`);
+        return true;
+      }
+      
+      // Even a non-200 response means the node is reachable
+      console.log(`⚠️  Arcium node responded with status ${response.status}`);
+      return true;
+      
+    } catch (error) {
+      // Try alternate health endpoint
+      try {
+        const altResponse = await axios.get(endpoint, {
+          timeout: 5000,
+          validateStatus: () => true,
+        });
+        
+        if (altResponse.status >= 200 && altResponse.status < 500) {
+          console.log(`✅ Arcium node reachable at ${endpoint}`);
+          return true;
+        }
+      } catch (altError) {
+        // Node is not reachable
+      }
+      
+      console.warn(`⚠️  Cannot reach Arcium node at ${endpoint}: ${error.message}`);
+      console.warn(`   This may be okay if using Docker internal networking`);
+      console.warn(`   The connection will be retried when MPC operations are performed`);
+      
+      // In development, allow continuing without node
+      const isProduction = process.env.NODE_ENV === 'production';
+      if (isProduction && !this.isSimulated) {
+        throw new Error(`Arcium node not reachable at ${endpoint}`);
+      }
+      
+      return false;
     }
   }
 
@@ -477,11 +543,11 @@ class ArciumService {
 
       let result;
 
-      if (this.useRealSDK && !this.isSimulated) {
-        result = await this._encryptWithRealSDK(amount, recipientPubkey);
-      } else {
-        result = await this._encryptWithEnhancedSimulation(amount, recipientPubkey);
+      // PRODUCTION MODE: Only real SDK encryption allowed
+      if (!this.connected) {
+        throw new Error('Arcium MPC not connected - cannot encrypt without real MPC network');
       }
+      result = await this._encryptWithRealSDK(amount, recipientPubkey);
 
       // Cache the result
       this._setCached(cacheKey, result);
@@ -660,11 +726,11 @@ class ArciumService {
 
       let result;
 
-      if (this.useRealSDK && !this.isSimulated) {
-        result = await this._generateRandomWithRealSDK(max, options);
-      } else {
-        result = await this._generateRandomWithEnhancedSimulation(max, options);
+      // PRODUCTION MODE: Only real SDK random generation allowed
+      if (!this.connected) {
+        throw new Error('Arcium MPC not connected - cannot generate trustless random without real MPC network');
       }
+      result = await this._generateRandomWithRealSDK(max, options);
 
       // Cache the result
       this._setCached(cacheKey, result);
@@ -770,11 +836,11 @@ class ArciumService {
     try {
       console.log(`🔓 Decrypting amount for authorized party: ${authorizedPubkey.substring(0, 10)}...`);
 
-      if (this.useRealSDK && !this.isSimulated) {
-        return await this._decryptWithRealSDK(encryptedData, authorizedPubkey);
-      } else {
-        return await this._decryptWithEnhancedSimulation(encryptedData, authorizedPubkey);
+      // PRODUCTION MODE: Only real SDK decryption allowed
+      if (!this.connected) {
+        throw new Error('Arcium MPC not connected - cannot decrypt without real MPC network');
       }
+      return await this._decryptWithRealSDK(encryptedData, authorizedPubkey);
 
     } catch (error) {
       console.error('❌ Error decrypting amount:', error);

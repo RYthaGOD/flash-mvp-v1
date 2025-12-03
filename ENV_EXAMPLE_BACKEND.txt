@@ -1,142 +1,158 @@
 # ============================================================================
-# FLASH Bridge Backend - Environment Configuration for Arcium Testnet
+# FLASH Bridge Backend - PRODUCTION Environment Configuration
 # ============================================================================
-# Copy this file to .env and update with your actual values
-# File: backend/.env.example
+# Copy this file to backend/.env and configure ALL required values
 # NEVER commit .env to version control!
+#
+# ⚠️  PRODUCTION MODE: No fallbacks, no simulation, no demo mode
+# ⚠️  All marked [REQUIRED] variables MUST be configured
+# ============================================================================
 
 # ============================================================================
 # SERVER CONFIGURATION
 # ============================================================================
 PORT=3001
-NODE_ENV=development
+NODE_ENV=production
+
+# [REQUIRED] Frontend URL for CORS
+FRONTEND_ORIGIN=https://your-production-domain.com
+
+# [REQUIRED] Admin API key - generate a strong random key
+# Generate with: openssl rand -hex 32
+ADMIN_API_KEY=YOUR_STRONG_ADMIN_API_KEY_HERE
+
+# Optional: Client API key for additional auth layer
+CLIENT_API_KEY=
 
 # ============================================================================
 # SOLANA CONFIGURATION
 # ============================================================================
-# Solana Network: devnet, testnet, mainnet-beta
-SOLANA_NETWORK=devnet
-SOLANA_RPC_URL=https://api.devnet.solana.com
+# [REQUIRED] Solana Network: devnet, testnet, mainnet-beta
+SOLANA_NETWORK=mainnet-beta
 
-# Flash Bridge MXE Program ID (REQUIRED for Arcium testnet)
-# This is your deployed flash-bridge-mxe program ID on Arcium testnet
-FLASH_BRIDGE_MXE_PROGRAM_ID=YOUR_FLASH_BRIDGE_MXE_PROGRAM_ID_HERE
+# [REQUIRED] Solana RPC URL - use a reliable RPC provider for production
+# Recommended: Helius, QuickNode, or Alchemy
+SOLANA_RPC_URL=https://your-rpc-provider.com
 
-# Legacy PROGRAM_ID (fallback, will use FLASH_BRIDGE_MXE_PROGRAM_ID if not set)
+# [REQUIRED] Flash Bridge MXE Program ID
+# This is your deployed flash-bridge-mxe program on Solana
+FLASH_BRIDGE_MXE_PROGRAM_ID=YOUR_DEPLOYED_PROGRAM_ID_HERE
+
+# Legacy PROGRAM_ID (optional, FLASH_BRIDGE_MXE_PROGRAM_ID takes precedence)
 PROGRAM_ID=
-
-# ============================================================================
-# NATIVE ZEC CONFIGURATION (RECOMMENDED)
-# ============================================================================
-# Use native ZEC token instead of custom zenZEC minting
-USE_NATIVE_ZEC=true
-
-# Official native ZEC mint address on Solana
-NATIVE_ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS
-# Alternative alias:
-ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS
-
-# Custom zenZEC token (only used if USE_NATIVE_ZEC=false)
-# ZENZEC_MINT=YourZenZECMintAddressHere
 
 # ============================================================================
 # RELAYER CONFIGURATION
 # ============================================================================
-# ⚠️  WARNING: Relayer services are DISABLED with flash_bridge_mxe program
-# The flash_bridge_mxe program does not support burn/swap operations
-# ENABLE_RELAYER is kept for compatibility but will not start the service
+# Treasury wallet that pays SOL claims
 ENABLE_RELAYER=false
 ENABLE_BTC_RELAYER=false
 
-# Relayer keypair path (ignored - relayer is disabled)
 # Path to your Solana keypair file for the treasury/relayer wallet
 # RELAYER_KEYPAIR_PATH=./relayer-keypair-new.json
 
 # ============================================================================
-# ARCIUM MPC CONFIGURATION - DOCKER NODE
+# ARCIUM MPC CONFIGURATION - PRODUCTION (NO SIMULATION)
 # ============================================================================
-# Enable Arcium MPC for privacy-preserving operations
-ENABLE_ARCIUM_MPC=true
+# ⚠️  PRODUCTION MODE: Simulation is DISABLED - Real MPC required
+# These settings are enforced by the backend and cannot be overridden:
+#   ENABLE_ARCIUM_MPC=true (always)
+#   ARCIUM_SIMULATED=false (always)
+#   ARCIUM_USE_REAL_SDK=true (always)
 
-# Use simulated MPC (true for testnet/dev, false for production with real MPC)
-# Set to false when using your own Docker node
-ARCIUM_SIMULATED=false
+# [REQUIRED] Arcium Node Endpoint - Your running Arcium node
+ARCIUM_ENDPOINT=http://your-arcium-node:8080
 
-# Use real Arcium SDK (required when using Docker node)
-ARCIUM_USE_REAL_SDK=true
+# [REQUIRED] Arcium Network
+ARCIUM_NETWORK=mainnet
 
-# Arcium Node Endpoint - Your Docker node endpoint
-# Default Docker node port is 8080 (check your docker run -p port mapping)
-# If your Docker node is mapped to different port, update accordingly
-ARCIUM_ENDPOINT=http://localhost:8080
-
-# Arcium Network
-ARCIUM_NETWORK=testnet
-
-# Arcium Cluster and Node Configuration (from your node setup)
+# [REQUIRED] Arcium Cluster ID (from your node registration)
 ARCIUM_CLUSTER_ID=your_cluster_id_here
+
+# [REQUIRED] Arcium Node Offset (from your node registration)
 ARCIUM_NODE_OFFSET=your_node_offset_here
 
-# Arcium API Configuration (may be optional for local Docker node)
-# ARCIUM_API_KEY=your_api_key_here
+# Arcium API Key (if required by your cluster)
+ARCIUM_API_KEY=your_api_key_here
 
-# Arcium Cluster and MXE IDs
-# ARCIUM_MXE_ID=flash_bridge_privacy
-# ARCIUM_PROGRAM_ID=your_arcium_program_id
+# Arcium MXE Configuration
+ARCIUM_MXE_ID=flash_bridge_privacy
 
-# Arcium Configuration (auto-generated if not set)
-# ARCIUM_ENCRYPTION_KEY=  # 32-byte key (auto-generated)
-# ARCIUM_HMAC_KEY=        # 32-byte key (auto-generated)
-# ARCIUM_COMPUTATION_TIMEOUT=30000
-# ARCIUM_MAX_RETRIES=3
-# ARCIUM_CACHE_TTL=300000
-# ARCIUM_MAX_POOL_SIZE=10
-# ARCIUM_PRIVACY_LEVEL=full
+# Performance tuning (optional)
+ARCIUM_COMPUTATION_TIMEOUT=30000
+ARCIUM_MAX_RETRIES=3
+ARCIUM_CACHE_TTL=300000
+ARCIUM_MAX_POOL_SIZE=10
+ARCIUM_PRIVACY_LEVEL=full
 
 # ============================================================================
-# DATABASE CONFIGURATION
+# DATABASE CONFIGURATION - PRODUCTION (PostgreSQL Required)
 # ============================================================================
-# PostgreSQL Configuration (Recommended)
-DB_HOST=localhost
+# [REQUIRED] PostgreSQL is REQUIRED for production - SQLite not supported
+
+# [REQUIRED] Database host
+DB_HOST=your-postgres-host.com
+
+# Database port (default: 5432)
 DB_PORT=5432
+
+# [REQUIRED] Database name
 DB_NAME=flash_bridge
-DB_USER=postgres
-DB_PASSWORD=your_database_password_here
 
-# Alternative: SQLite (if PostgreSQL not available)
-# DATABASE_PATH=./database/flash-bridge.db
+# [REQUIRED] Database user
+DB_USER=flash_bridge_user
 
-# ============================================================================
-# BITCOIN CONFIGURATION (TESTNET)
-# ============================================================================
-BITCOIN_NETWORK=testnet
-BITCOIN_EXPLORER_URL=https://blockstream.info/testnet/api
-BITCOIN_BRIDGE_ADDRESS=tb1qyour_bitcoin_testnet_address_here
-BITCOIN_REQUIRED_CONFIRMATIONS=1
-BOOTSTRAP_BTC=0.01
-ENABLE_BITCOIN_MONITORING=false
+# [REQUIRED] Database password - use a strong password
+DB_PASSWORD=YOUR_STRONG_DATABASE_PASSWORD_HERE
+
+# Connection pool settings (tune based on your load)
+DB_POOL_MAX=20
+DB_POOL_MIN=5
+DB_IDLE_TIMEOUT=30000
+DB_CONNECTION_TIMEOUT=10000
 
 # ============================================================================
-# ZCASH CONFIGURATION (TESTNET)
+# REDIS CONFIGURATION - PRODUCTION (Distributed Rate Limiting)
 # ============================================================================
-ZCASH_NETWORK=testnet
-ZCASH_EXPLORER_URL=https://lightwalletd.testnet.z.cash
-ZCASH_BRIDGE_ADDRESS=ztestsapling1your_zcash_testnet_address_here
-ZCASH_LIGHTWALLETD_URL=https://lightwalletd.testnet.z.cash
-USE_ZECWALLET_CLI=false
+# [RECOMMENDED] Redis enables distributed rate limiting across instances
+# Without Redis, rate limiting uses in-memory storage (single-instance only)
+
+# Redis URL (preferred format)
+REDIS_URL=redis://your-redis-host:6379
+
+# Or separate host/port configuration
+REDIS_HOST=your-redis-host
+REDIS_PORT=6379
+REDIS_PASSWORD=your_redis_password
 
 # ============================================================================
-# EXCHANGE & PRICING CONFIGURATION
+# BITCOIN CONFIGURATION - PRODUCTION
 # ============================================================================
-EXCHANGE_PROVIDER=coingecko
-USE_EXCHANGE=false
-# EXCHANGE_API_KEY=your_exchange_api_key
-# EXCHANGE_API_SECRET=your_exchange_api_secret
+# [REQUIRED] Bitcoin Network: mainnet or testnet
+BITCOIN_NETWORK=mainnet
 
-# Exchange Rates (used if USE_EXCHANGE=false)
-# ZENZEC_TO_SOL_RATE=100
-# SOL_TO_ZENZEC_RATE=0.01
-# ZENZEC_TO_BTC_RATE=0.0001
+# Bitcoin Explorer API (defaults based on network if not set)
+BITCOIN_EXPLORER_URL=https://blockstream.info/api
+
+# [REQUIRED] Bitcoin Bridge Address - your controlled address for receiving deposits
+BITCOIN_BRIDGE_ADDRESS=bc1q_YOUR_MAINNET_ADDRESS_HERE
+
+# [REQUIRED for unique addresses] Extended Public Key for HD address derivation
+BITCOIN_BRIDGE_XPUB=xpub_YOUR_EXTENDED_PUBLIC_KEY_HERE
+
+# Address derivation settings
+BITCOIN_DEPOSIT_DERIVATION_PATH="m/84'/0'/0'"
+BITCOIN_DEPOSIT_CHANGE_INDEX=0
+BITCOIN_DEPOSIT_TTL_MINUTES=180
+
+# [PRODUCTION] Minimum 1 confirmation required, recommend 3+ for large amounts
+BITCOIN_REQUIRED_CONFIRMATIONS=3
+
+# Bootstrap reserve (BTC amount to seed the bridge)
+BOOTSTRAP_BTC=0
+
+# [REQUIRED for production] Enable Bitcoin monitoring
+ENABLE_BITCOIN_MONITORING=true
 
 # ============================================================================
 # JUPITER SWAP CONFIGURATION
@@ -149,7 +165,7 @@ USE_EXCHANGE=false
 # ============================================================================
 # FEATURE FLAGS
 # ============================================================================
-ENABLE_ZENZEC=false
+ENABLE_ZENZEC=false  # legacy flag retained for compatibility
 
 # ============================================================================
 # RESERVE MANAGER CONFIGURATION

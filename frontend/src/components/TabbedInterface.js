@@ -58,7 +58,7 @@ function TabbedInterface() {
   const quickActions = [
     { label: 'Bridge BTC → SOL', tab: 'bridge' },
     { label: 'Arcium MPC Tools', tab: 'arcium' },
-    { label: 'Monitor Zcash', tab: 'zcash' },
+    { label: 'Legacy Zcash View', tab: 'zcash' },
   ];
 
   const fetchBalances = useCallback(async () => {
@@ -84,7 +84,7 @@ function TabbedInterface() {
       {
         label: 'SOL Wallet',
         value: connected && publicKey ? shortenAddress(publicKey) : 'Not connected',
-        caption: connected ? 'Ready to receive ZEC' : 'Connect Solana wallet',
+        caption: connected ? 'Ready to receive SOL' : 'Connect Solana wallet',
         intent: connected ? 'positive' : 'muted'
       },
       {
@@ -120,7 +120,7 @@ function TabbedInterface() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: 'easeOut' }}
         >
-          <p className="eyebrow">Flash Bridge • Private BTC ↔ ZEC ↔ SOL</p>
+          <p className="eyebrow">Flash Bridge • BTC Deposits → SOL Payouts</p>
           <motion.h1
             initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
@@ -134,7 +134,7 @@ function TabbedInterface() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: 'easeOut', delay: prefersReducedMotion ? 0 : 0.1 }}
           >
-            Monitor relayers, inspect Zcash privacy proofs, and bridge native assets with Arcium-grade security.
+            Monitor deposits, inspect cryptographic proofs, and release SOL from the treasury with Arcium-grade security.
           </motion.p>
 
           <div className="hero-actions">

@@ -12,9 +12,33 @@ import './App.css';
 // Import wallet adapter CSS
 require('@solana/wallet-adapter-react-ui/styles.css');
 
+// Get network from environment variable
+const getNetwork = () => {
+  const networkEnv = process.env.REACT_APP_SOLANA_NETWORK || 'devnet';
+  switch (networkEnv.toLowerCase()) {
+    case 'mainnet-beta':
+    case 'mainnet':
+      return WalletAdapterNetwork.Mainnet;
+    case 'testnet':
+      return WalletAdapterNetwork.Testnet;
+    case 'devnet':
+    default:
+      return WalletAdapterNetwork.Devnet;
+  }
+};
+
+// Get RPC endpoint - use custom or default cluster URL
+const getRpcEndpoint = (network) => {
+  const customRpc = process.env.REACT_APP_SOLANA_RPC_URL;
+  if (customRpc) {
+    return customRpc;
+  }
+  return clusterApiUrl(network);
+};
+
 function App() {
-  const network = WalletAdapterNetwork.Devnet;
-  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+  const network = getNetwork();
+  const endpoint = useMemo(() => getRpcEndpoint(network), [network]);
 
   const wallets = useMemo(
     () => [

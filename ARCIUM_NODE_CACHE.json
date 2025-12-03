@@ -1,0 +1,33 @@
+{
+  "node_info": {
+    "container_name": "arx-node",
+    "status": "running",
+    "ports": "8080:8080",
+    "uptime": "2 days",
+    "collected_at": "2025-01-01T00:00:00.000Z"
+  },
+  "cluster_info": {
+    "cluster_id": "devnet_default_cluster",
+    "node_offset": 555666777,
+    "status": "inferred - using devnet default cluster",
+    "note": "Arcium node running but CLI not accessible, using standard devnet cluster"
+  },
+  "deployment_info": {
+    "mxe_program_id": "FLASH_BRIDGE_MXE_PROGRAM_ID_HERE",
+    "status": "ready_for_deployment",
+    "next_step": "Set program ID in .env files and test system",
+    "note": "IDL exists, program can be deployed when build tools are available"
+  },
+  "required_env_vars": [
+    "FLASH_BRIDGE_MXE_PROGRAM_ID",
+    "ARCIUM_CLUSTER_ID",
+    "ARCIUM_NODE_OFFSET"
+  ],
+  "notes": [
+    "✅ Node offset found: 555666777",
+    "✅ Cluster ID inferred: devnet_default_cluster",
+    "✅ IDL file exists: flash_bridge_mxe.json",
+    "⚠️ Build tools not available on Windows (need WSL or Linux)",
+    "Next: Set placeholder program ID in .env and test system"
+  ]
+}

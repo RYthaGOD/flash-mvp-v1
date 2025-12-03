@@ -1,4 +1,5 @@
 const { PublicKey } = require('@solana/web3.js');
+const bitcoinService = require('../services/bitcoin');
 
 /**
  * Comprehensive Input Validation Middleware
@@ -26,6 +27,25 @@ function validatePublicKey(value, fieldName = 'PublicKey') {
   } catch (error) {
     throw new Error(`${fieldName} is not a valid Solana PublicKey: ${value}`);
   }
+}
+
+/**
+ * Validate UUID format
+ * @param {string} value
+ * @param {string} fieldName
+ * @returns {string}
+ */
+function validateUUID(value, fieldName = 'id') {
+  if (!value || typeof value !== 'string') {
+    throw new Error(`${fieldName} is required and must be a string`);
+  }
+
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(value)) {
+    throw new Error(`${fieldName} must be a valid UUID`);
+  }
+
+  return value;
 }
 
 /**
@@ -214,10 +234,10 @@ function validateBridgeRequest(req, res, next) {
   try {
     const { solanaAddress, amount, bitcoinTxHash, zcashTxHash, useZecPrivacy } = req.body;
 
-    // Validate Solana address
-    if (solanaAddress) {
-      validatePublicKey(solanaAddress, 'solanaAddress');
+    if (!solanaAddress) {
+      throw new Error('solanaAddress is required');
     }
+    validatePublicKey(solanaAddress, 'solanaAddress');
 
     // Validate amount
     if (amount !== undefined) {
@@ -231,6 +251,14 @@ function validateBridgeRequest(req, res, next) {
     if (bitcoinTxHash) {
       validateTransactionSignature(bitcoinTxHash, 'bitcoinTxHash');
       // Could add more specific BTC tx validation here
+
+      if (bitcoinService.supportsDepositAllocations()) {
+        if (!req.body.depositAllocationId) {
+          throw new Error('depositAllocationId is required when submitting bitcoinTxHash');
+        }
+
+        validateUUID(req.body.depositAllocationId, 'depositAllocationId');
+      }
     }
 
     if (zcashTxHash) {
@@ -433,6 +461,7 @@ function validateMarkRedemptionRequest(req, res, next) {
 
 module.exports = {
   validatePublicKey,
+  validateUUID,
   validateTransactionSignature,
   validateAmount,
   validateString,

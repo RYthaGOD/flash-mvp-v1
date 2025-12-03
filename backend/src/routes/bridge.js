@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { LAMPORTS_PER_SOL } = require('@solana/web3.js');
 const solanaService = require('../services/solana');
 const bitcoinService = require('../services/bitcoin');
 const converterService = require('../services/converter');
@@ -7,6 +8,7 @@ const databaseService = require('../services/database');
 const cryptoProofsService = require('../services/crypto-proofs');
 const reserveManager = require('../services/reserveManager');
 const {
+  validatePublicKey,
   validateBridgeRequest,
   validateSwapRequest,
   validateBurnRequest,
@@ -14,7 +16,8 @@ const {
   validateTxId,
   validateMarkRedemptionRequest,
   validateTransferType,
-  validateSignatureParam
+  validateSignatureParam,
+  validateUUID
 } = require('../middleware/validation');
 const { asyncHandler, APIError } = require('../middleware/errorHandler');
 const { createLogger } = require('../utils/logger');
@@ -88,6 +91,90 @@ router.get('/btc-deposit/:txHash', walletBridgeLimiter, requireClientSignature, 
 }));
 
 /**
+ * Allocate or reuse a unique BTC deposit address for a Solana wallet
+ * POST /api/bridge/btc-address
+ * Body: { solanaAddress, sessionId?, clientLabel?, forceNew?, metadata? }
+ */
+router.post('/btc-address', walletBridgeLimiter, requireClientSignature, asyncHandler(async (req, res) => {
+  const {
+    solanaAddress,
+    sessionId,
+    clientLabel,
+    forceNew = false,
+    metadata = null,
+  } = req.body;
+
+  if (!solanaAddress) {
+    throw new APIError(400, 'solanaAddress is required');
+  }
+
+  try {
+    validatePublicKey(solanaAddress, 'solanaAddress');
+  } catch (error) {
+    throw new APIError(400, error.message);
+  }
+
+  if (!bitcoinService.supportsDepositAllocations()) {
+    throw new APIError(
+      503,
+      'BTC address allocation unavailable. Configure BITCOIN_BRIDGE_XPUB and PostgreSQL.'
+    );
+  }
+
+  const safeMetadata =
+    metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? metadata
+      : null;
+
+  try {
+    const allocation = await bitcoinService.getOrCreateDepositAllocation({
+      solanaAddress,
+      sessionId: sessionId ? String(sessionId).slice(0, 128) : null,
+      clientLabel: clientLabel ? String(clientLabel).slice(0, 64) : null,
+      forceNew: Boolean(forceNew),
+      metadata: safeMetadata,
+    });
+
+    res.json({
+      success: true,
+      depositAddress: allocation.bitcoinAddress,
+      allocation,
+    });
+  } catch (error) {
+    logger.error('Failed to allocate BTC deposit address', { error: error.message });
+    if (error instanceof APIError) {
+      throw error;
+    }
+    throw new APIError(500, 'Failed to allocate BTC deposit address', { reason: error.message });
+  }
+}));
+
+/**
+ * Full BTC deposit status + reconciliation info
+ * GET /api/bridge/check-btc-deposits
+ */
+router.get('/check-btc-deposits', walletBridgeLimiter, asyncHandler(async (req, res) => {
+  const details = await bitcoinService.getDepositDetails();
+
+  if (!details || details.error) {
+    throw new APIError(503, details?.error || 'Unable to fetch BTC deposit details');
+  }
+
+  res.json({
+    success: true,
+    bridgeAddress: details.bridgeAddress,
+    network: details.network,
+    explorerUrl: details.explorerUrl,
+    requiredConfirmations: details.requiredConfirmations,
+    summary: details.summary,
+    deposits: details.deposits,
+    currentReserveBTC: details.currentReserveBTC,
+    reconciliation: details.reconciliation,
+    timestamp: details.timestamp,
+  });
+}));
+
+/**
  * Safely convert floating point asset amounts to smallest unit integers
  */
 function convertToSmallestUnit(amount, decimals, assetLabel = 'asset') {
@@ -157,6 +244,18 @@ router.get('/info', async (req, res) => {
     const connection = solanaService.getConnection();
     const version = await connection.getVersion();
     const bitcoinInfo = bitcoinService.getNetworkInfo();
+    let treasuryBalanceSOL = null;
+    let treasuryAddress = null;
+
+    if (solanaService.relayerKeypair?.publicKey) {
+      treasuryAddress = solanaService.relayerKeypair.publicKey.toBase58();
+      try {
+        const lamports = await connection.getBalance(solanaService.relayerKeypair.publicKey);
+        treasuryBalanceSOL = lamports / LAMPORTS_PER_SOL;
+      } catch (balanceError) {
+        logger.warn('Unable to fetch SOL treasury balance', { error: balanceError.message });
+      }
+    }
     
     // Get Zcash bridge address (from wallet or env)
     let zcashBridgeAddress = null;
@@ -170,6 +269,8 @@ router.get('/info', async (req, res) => {
       network: process.env.SOLANA_NETWORK || 'devnet',
       programId: process.env.PROGRAM_ID,
       treasury: 'USDC Treasury + Jupiter Swaps',
+      treasuryAddress,
+      treasuryBalanceSOL,
       solanaVersion: version,
       description: 'FLASH BTC→USDC→Token Bridge (Cash App Optimized)',
       bitcoin: {
@@ -177,7 +278,7 @@ router.get('/info', async (req, res) => {
         bridgeAddress: bitcoinInfo.bridgeAddress,
         currentReserve: bitcoinInfo.currentReserveBTC,
       },
-      zcash: null, // Zcash support removed - using native ZEC on Solana/
+      zcash: null, // Zcash support removed - SOL payouts only
     });
   } catch (error) {
     logger.error('Error fetching bridge info:', error);
@@ -185,17 +286,25 @@ router.get('/info', async (req, res) => {
   }
 });
 
-// Main bridge endpoint: Mint native ZEC tokens from BTC deposits
-// Supports two flows:
-// 1. BTC → native ZEC (Cash App → Bitcoin → Bridge)
-// 2. ZEC → native ZEC (Direct Zcash → Bridge)
+// Main bridge endpoint: release SOL from treasury when BTC deposits are verified
+// Supported flows:
+// 1. BTC → SOL (Cash App → Bitcoin → Bridge)
+// 2. Demo mode (no hash) for scripted demos
 router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRequest, asyncHandler(async (req, res) => {
-  const { solanaAddress, amount, swapToSol, bitcoinTxHash, zcashTxHash } = req.body;
+  const { solanaAddress, amount, bitcoinTxHash, zcashTxHash, depositAllocationId } = req.body;
 
-  // For MVP demo mode: transaction hashes are optional
-  // If no hash provided, we'll simulate the bridge (demo mode)
-  // For SOL demo, treat BTC transactions as demo mode too (since treasury may be unfunded)
-  const isDemoMode = !bitcoinTxHash && !zcashTxHash;
+  // Check environment mode
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  // In production: Transaction hashes are REQUIRED
+  // In development: Allow demo mode for testing
+  if (!bitcoinTxHash && !zcashTxHash) {
+    if (isProduction) {
+      throw new APIError(400, 'Transaction hash required. Provide bitcoinTxHash for BTC deposits.');
+    }
+    logger.warn('⚠️  Running in demo mode (no transaction hash) - DEVELOPMENT ONLY');
+  }
+  const isDemoMode = !bitcoinTxHash && !zcashTxHash && !isProduction;
 
   // Amount already validated and parsed by middleware
   const amountNum = amount;
@@ -205,18 +314,39 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
   const isZcashFlow = !!zcashTxHash;
 
   let btcVerification = null;
-  let zecVerification = null;
+  let depositAllocation = null;
+  const depositAllocationsEnabled = bitcoinService.supportsDepositAllocations();
+  let matchedDepositAddress = bitcoinService.bridgeAddress;
   let reserveAmount = 0;
   let reserveAsset = 'SOL'; // Default to SOL for demo bridge
 
   if (isDemoMode) {
     logger.info('Running in demo mode - simulating bridge transaction');
-    reserveAmount = convertToSmallestUnit(amountNum, 8, 'ZEC (demo)');
+    reserveAmount = convertToSmallestUnit(amountNum, 9, 'SOL (demo)');
   } else if (isBitcoinFlow) {
     logger.info(`Verifying Bitcoin payment: ${bitcoinTxHash}`);
+
+    if (depositAllocationsEnabled) {
+      if (!depositAllocationId) {
+        throw new APIError(400, 'depositAllocationId is required for BTC claims');
+      }
+      try {
+        // Extra safety in case request bypassed validation middleware
+        validateUUID(depositAllocationId, 'depositAllocationId');
+        depositAllocation = await bitcoinService.assertAllocationForAddress(
+          depositAllocationId,
+          solanaAddress
+        );
+        matchedDepositAddress = depositAllocation.bitcoinAddress;
+      } catch (error) {
+        throw new APIError(400, error.message || 'Invalid deposit allocation');
+      }
+    }
+
     btcVerification = await bitcoinService.verifyBitcoinPayment(
       bitcoinTxHash,
-      amountNum // Expected amount in BTC
+      amountNum, // Expected amount in BTC
+      depositAllocation ? { expectedAddress: depositAllocation.bitcoinAddress } : {}
     );
 
     if (!btcVerification.verified) {
@@ -230,18 +360,53 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
 
     logger.info(`Bitcoin payment verified: ${btcVerification.amountBTC} BTC`);
     logger.info(`Confirmations: ${btcVerification.confirmations}`);
+    matchedDepositAddress = depositAllocation?.bitcoinAddress
+      || btcVerification.matchedAddresses?.[0]
+      || matchedDepositAddress;
 
-    logger.info('Converting BTC to SOL for devnet bridge...');
+    if (depositAllocation) {
+      try {
+        await bitcoinService.markAllocationFunded(depositAllocation.allocationId, {
+          txHash: bitcoinTxHash,
+          amountSatoshis: btcVerification.amount,
+        });
+        logger.info(`Marked allocation ${depositAllocation.allocationId} as funded`);
+      } catch (error) {
+        logger.warn('Unable to mark BTC allocation funded', {
+          allocationId: depositAllocation.allocationId,
+          error: error.message,
+        });
+      }
+    }
+
+    if (databaseService.isConnected()) {
+      try {
+        await databaseService.saveBTCDeposit({
+          txHash: bitcoinTxHash,
+          bridgeAddress: matchedDepositAddress,
+          amountSatoshis: btcVerification.amount,
+          amountBTC: btcVerification.amountBTC,
+          confirmations: btcVerification.confirmations,
+          requiredConfirmations: bitcoinService.requiredConfirmations,
+          blockHeight: btcVerification.blockHeight,
+          blockTime: btcVerification.timestamp,
+          status: 'confirmed',
+          solanaAddress,
+        });
+      } catch (error) {
+        logger.warn('Unable to persist BTC deposit record', { error: error.message });
+      }
+    }
+
+    logger.info('Converting BTC to SOL equivalent for devnet bridge...');
     try {
       const exchangeRate = await converterService.getBTCtoZECRate();
-      const zecAmount = btcVerification.amountBTC * exchangeRate;
+      const solAmount = btcVerification.amountBTC * exchangeRate;
 
-      logger.info(`Exchange rate: 1 BTC = ${exchangeRate} ZEC`);
-      logger.info(`Calculated: ${btcVerification.amountBTC} BTC → ${zecAmount} ZEC`);
+      logger.info(`Proxy rate: 1 BTC = ${exchangeRate} (treating as SOL equivalent)`);
+      logger.info(`Calculated: ${btcVerification.amountBTC} BTC → ${solAmount} SOL (demo conversion)`);
 
-      // For devnet demo, convert ZEC to SOL equivalent (simplified 1:1 for demo)
-      const solAmount = zecAmount; // 1 ZEC = 1 SOL for demo purposes
-      reserveAmount = convertToSmallestUnit(solAmount, 9, 'SOL'); // SOL has 9 decimals
+      reserveAmount = convertToSmallestUnit(solAmount, 9, 'SOL');
       reserveAsset = 'SOL';
       logger.info(`Using SOL equivalent: ${solAmount} SOL (${reserveAmount} lamports)`);
     } catch (error) {
@@ -259,26 +424,16 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
   }
 
   // STEP 3: Check reserve capacity and determine transfer method
-  const useNativeZEC = process.env.USE_NATIVE_ZEC !== 'false' &&
-                       (process.env.NATIVE_ZEC_MINT || process.env.ZEC_MINT);
-  logger.info(`useNativeZEC: ${useNativeZEC}, USE_NATIVE_ZEC: ${process.env.USE_NATIVE_ZEC}, NATIVE_ZEC_MINT: ${process.env.NATIVE_ZEC_MINT}, reserveAsset: ${reserveAsset}`);
-    
-    let currentReserve = 0;
-    if (reserveAsset === 'BTC') {
-      currentReserve = bitcoinService.getCurrentReserve();
-    } else if (reserveAsset === 'ZEC' && useNativeZEC) {
-      // Check on-chain ZEC treasury balance
-      try {
-        const treasuryBalance = await solanaService.getTreasuryZECBalance();
-        currentReserve = Number(treasuryBalance);
-      } catch (error) {
-        logger.warn('Could not check ZEC treasury balance:', error.message);
-        currentReserve = 0;
-      }
+  let currentReserve = 0;
+  if (reserveAsset === 'SOL') {
+    try {
+      currentReserve = await solanaService.connection.getBalance(solanaService.relayerKeypair.publicKey);
+    } catch (error) {
+      logger.warn('Could not fetch SOL treasury balance:', error.message);
     }
+  }
 
-    // For minting/transferring, use 1:1 ratio (1 BTC/ZEC = 1 native ZEC/native ZEC)
-    // Convert to amount (using smallest unit for precision)
+  // Convert to lamports (using smallest unit for precision)
   const transferAmount = ensureSafeIntegerAmount(reserveAmount, 'Transfer amount');
 
   if (transferAmount > currentReserve && currentReserve > 0) {
@@ -291,33 +446,34 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
     ? `demo_${Date.now()}_${Math.random().toString(36).substring(7)}`
     : `btc_${bitcoinTxHash.substring(0, 16)}_${Date.now()}`;
 
-  // STEP 5: Transfer native ZEC or mint native ZEC on Solana
+  // STEP 5: Transfer SOL from treasury (no minting)
   let solanaTxSignature = null;
   let mintStatus = 'pending';
-  let tokenType = 'SOL';
+  const tokenType = 'SOL';
 
   try {
     if (reserveAsset === 'SOL') {
       logger.info(`Transferring ${transferAmount / 1e9} SOL to ${solanaAddress}`);
       logger.info(`Reserve asset: ${reserveAsset} (${isBitcoinFlow ? 'from BTC' : 'demo'})`);
-      logger.info(`Swap to SOL: ${swapToSol || false}`);
 
       // Check treasury balance first
       const treasuryBalance = await solanaService.connection.getBalance(solanaService.relayerKeypair.publicKey);
 
       if (transferAmount > treasuryBalance) {
-        if (isDemoMode || isBitcoinFlow) {
-          // Demo mode or BTC flow: simulate successful transfer when treasury is empty
-          const mode = isDemoMode ? 'Demo mode' : 'BTC bridge demo mode';
-          logger.info(`🎭 ${mode}: Treasury empty (${treasuryBalance / 1e9} SOL), simulating SOL transfer to ${solanaAddress}`);
+        if (isDemoMode) {
+          // Development demo mode: simulate transfer when treasury is empty
+          logger.info(`🎭 Demo mode: Treasury empty (${treasuryBalance / 1e9} SOL), simulating transfer`);
           solanaTxSignature = `demo_tx_${Date.now()}_${Math.random().toString(36).substring(7)}`;
           mintStatus = 'confirmed';
           logger.info(`✓ Demo transfer simulated: ${solanaTxSignature}`);
         } else {
+          // Production: Reject if insufficient reserves
           throw new APIError(503, 'Insufficient SOL reserves', {
             requested: transferAmount,
             available: treasuryBalance,
-            message: 'Treasury does not have enough SOL. Please fund the treasury.'
+            requestedSOL: transferAmount / 1e9,
+            availableSOL: treasuryBalance / 1e9,
+            message: 'Treasury does not have enough SOL to complete this transaction. Contact support.'
           });
         }
       } else {
@@ -333,12 +489,12 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
             solanaTxSignature,
             transferType: 'redemption',
             userAddress: solanaAddress,
-            amount: transferAmount / 1e8,
+            amount: transferAmount / 1e9,
             metadata: {
               source: isBitcoinFlow ? 'bitcoin_bridge' : 'demo_bridge',
               reserveAsset,
               demoMode: isDemoMode,
-              swapToSol: swapToSol || false
+              depositAllocationId: depositAllocation?.allocationId || null,
             },
             createdBy: 'api'
           });
@@ -347,22 +503,30 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
           logger.error('Error creating transfer metadata:', error);
         }
       }
-    } else {
-      logger.info(`Minting ${transferAmount / 1e8} ${tokenType} to ${solanaAddress}`);
-      logger.info(`Reserve asset: ${reserveAsset}`);
-      logger.info(`Swap to SOL: ${swapToSol || false}`);
 
-      solanaTxSignature = await solanaService.mintZenZEC(solanaAddress, transferAmount);
-      mintStatus = 'confirmed';
-      logger.info(`✓ Minting successful: ${solanaTxSignature}`);
+      if (depositAllocation && solanaTxSignature) {
+        try {
+          await bitcoinService.markAllocationClaimed(depositAllocation.allocationId, {
+            txHash: bitcoinTxHash,
+            solanaTxSignature,
+          });
+        } catch (error) {
+          logger.warn('Unable to mark BTC allocation claimed', {
+            allocationId: depositAllocation.allocationId,
+            error: error.message,
+          });
+        }
+      }
+    } else {
+      throw new APIError(400, `Unsupported reserve asset ${reserveAsset}. The current workflow only pays out SOL.`);
     }
   } catch (error) {
     logger.error('Error executing bridge transfer', { error: error.message });
     throw error instanceof APIError ? error : new APIError(500, 'Failed to complete bridge transfer');
   }
 
-    // Save to demo in-memory store (replace with database later)
-    demoTransactionStatuses.set(txId, {
+    // Transaction data object
+    const transactionData = {
       transaction_id: txId,
       transaction_type: 'bridge',
       status: mintStatus,
@@ -372,18 +536,20 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
       solana_tx_signature: solanaTxSignature,
       bitcoin_tx_hash: bitcoinTxHash || null,
       zcash_tx_hash: zcashTxHash || null,
+      deposit_allocation_id: depositAllocation?.allocationId || null,
+      bitcoin_deposit_address: matchedDepositAddress || null,
       demo_mode: isDemoMode,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
-    });
+    };
 
-    // Also save to database if available
+    // PRIMARY: Save to database (persistent storage)
     if (databaseService.isConnected()) {
       try {
         await databaseService.saveBridgeTransaction({
           txId,
           solanaAddress,
-          amount: transferAmount / 1e8,
+          amount: transferAmount / 1e9,
           reserveAsset,
           status: mintStatus,
           solanaTxSignature,
@@ -392,12 +558,18 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
           demoMode: isDemoMode,
         });
         logger.info(`✓ Transaction saved to database: ${txId}`);
-      } catch (error) {
+      logger.info(`✓ Transaction saved to database: ${txId}`);
+    } catch (error) {
         logger.error('Error saving transaction to database:', error);
+        // FALLBACK: Save to in-memory store if database fails
+        demoTransactionStatuses.set(txId, transactionData);
+        logger.warn(`⚠️  Transaction ${txId} saved to in-memory fallback (not persistent)`);
       }
+    } else {
+      // FALLBACK: Save to in-memory store when database unavailable
+      demoTransactionStatuses.set(txId, transactionData);
+      logger.warn(`⚠️  Transaction ${txId} saved to in-memory fallback (database unavailable)`);
     }
-
-    logger.info(`✓ Transaction saved to demo store: ${txId}`);
 
     // Generate cryptographic proof for institutional compliance
     let cryptographicProof = null;
@@ -405,12 +577,14 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
       const proofData = {
         txId,
         solanaAddress,
-        amount: transferAmount / 1e8,
+        amount: transferAmount / 1e9,
         reserveAsset,
         status: mintStatus,
         solanaTxSignature,
         bitcoinTxHash: bitcoinTxHash || null,
         zcashTxHash: zcashTxHash || null,
+        depositAllocationId: depositAllocation?.allocationId || null,
+        bitcoinDepositAddress: matchedDepositAddress || null,
         demoMode: isDemoMode,
         createdAt: Date.now(),
         verificationPerformed: !isDemoMode,
@@ -441,9 +615,8 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
     const response = {
       success: true,
       transactionId: txId,
-      amount: transferAmount / 1e8,
+      amount: transferAmount / 1e9,
       solanaAddress,
-      swapToSol: swapToSol || false,
       status: mintStatus,
       message: isDemoMode
         ? `${tokenType} transfer initiated (demo mode - no transaction verification)`
@@ -451,6 +624,8 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
       reserveAsset,
       demoMode: isDemoMode,
       solanaTxSignature: solanaTxSignature || null,
+      depositAllocationId: depositAllocation?.allocationId || null,
+      bitcoinDepositAddress: matchedDepositAddress || null,
       // Add cryptographic proof for institutional compliance
       cryptographicProof: cryptographicProof ? {
         transactionId: txId,
@@ -473,35 +648,20 @@ router.post('/', combinedBridgeLimiter, requireClientSignature, validateBridgeRe
         amountBTC: btcVerification.amountBTC,
         confirmations: btcVerification.confirmations,
         blockHeight: btcVerification.blockHeight,
+        depositAddress: matchedDepositAddress,
+        matchedAddresses: btcVerification.matchedAddresses || null,
+        expectedAddresses: btcVerification.expectedAddresses || null,
+        requiredConfirmations: bitcoinService.requiredConfirmations,
       };
-    }
-
-    // Add Zcash verification if present
-    if (zecVerification) {
-      response.amountZEC = zecVerification.amount || amountNum;
-      response.zcashVerification = {
-        verified: true,
-        txHash: zcashTxHash,
-        amount: zecVerification.amount || amountNum,
-        blockHeight: zecVerification.blockHeight,
-      };
-
-      // If this was BTC → ZEC conversion, include exchange rate
-      if (btcVerification) {
-        response.zcashVerification.exchangeRate = btcVerification.amountBTC / (zecVerification.amount || 1);
-      }
-    }
-
-    // Note about swap to SOL
-    if (swapToSol) {
-      response.swapNote = 'native ZEC will be burned and swapped to SOL via relayer. Call burn_and_emit instruction.';
     }
 
     res.json(response);
 }));
 
-// In-memory status tracking for demo (replace with database later)
+// In-memory status tracking as fallback when database is unavailable
+// NOTE: This is NOT persistent - use database in production
 const demoTransactionStatuses = new Map();
+logger.warn('⚠️  In-memory transaction store loaded - data will be lost on restart');
 
 // Demo proof verification endpoint (no auth required for demo)
 router.get('/proof/:txId/verify', validateTxId, asyncHandler(async (req, res) => {

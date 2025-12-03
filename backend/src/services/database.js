@@ -1135,6 +1135,218 @@ class DatabaseService {
   }
 
   /**
+   * Generate the next derivation index for BTC deposit addresses
+   * @returns {Promise<number>} Next derivation index
+   */
+  async getNextBTCDepositAddressIndex() {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected');
+    }
+
+    try {
+      const result = await this.pool.query("SELECT nextval('btc_deposit_address_index_seq') AS index");
+      const index = result.rows?.[0]?.index;
+      if (index === undefined || index === null) {
+        throw new Error('Failed to generate deposit address index');
+      }
+      return Number(index);
+    } catch (error) {
+      console.error('Error generating BTC deposit address index:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create BTC deposit address allocation record
+   * @param {Object} allocation - Allocation data
+   * @returns {Promise<Object|null>} Saved allocation
+   */
+  async createBTCDepositAllocation(allocation) {
+    if (!this.isConnected()) {
+      return null;
+    }
+
+    const {
+      allocationId,
+      solanaAddress,
+      bitcoinAddress,
+      derivationIndex,
+      derivationPath,
+      status = 'allocated',
+      sessionId,
+      clientLabel,
+      metadata = null,
+      expiresAt = null
+    } = allocation;
+
+    const query = `
+      INSERT INTO btc_deposit_addresses (
+        allocation_id, solana_address, bitcoin_address,
+        derivation_index, derivation_path, status,
+        session_id, client_label, metadata, expires_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (allocation_id)
+      DO UPDATE SET
+        solana_address = EXCLUDED.solana_address,
+        bitcoin_address = EXCLUDED.bitcoin_address,
+        status = EXCLUDED.status,
+        session_id = COALESCE(EXCLUDED.session_id, btc_deposit_addresses.session_id),
+        client_label = COALESCE(EXCLUDED.client_label, btc_deposit_addresses.client_label),
+        metadata = COALESCE(EXCLUDED.metadata, btc_deposit_addresses.metadata),
+        expires_at = COALESCE(EXCLUDED.expires_at, btc_deposit_addresses.expires_at),
+        updated_at = NOW()
+      RETURNING *
+    `;
+
+    try {
+      const result = await this.pool.query(query, [
+        allocationId,
+        solanaAddress,
+        bitcoinAddress,
+        derivationIndex,
+        derivationPath,
+        status,
+        sessionId || null,
+        clientLabel || null,
+        metadata ? JSON.stringify(metadata) : null,
+        expiresAt ? new Date(expiresAt) : null
+      ]);
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error creating BTC deposit allocation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch latest active allocation for a Solana address
+   * @param {string} solanaAddress
+   * @returns {Promise<Object|null>}
+   */
+  async findActiveBTCDepositAllocation(solanaAddress) {
+    if (!this.isConnected()) {
+      return null;
+    }
+
+    const query = `
+      SELECT *
+      FROM btc_deposit_addresses
+      WHERE solana_address = $1
+        AND status IN ('allocated', 'funded')
+        AND (expires_at IS NULL OR expires_at > NOW() OR funded_tx_hash IS NOT NULL)
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    try {
+      const result = await this.pool.query(query, [solanaAddress]);
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error fetching active BTC deposit allocation:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Lookup allocation by UUID
+   * @param {string} allocationId
+   * @returns {Promise<Object|null>}
+   */
+  async getBTCDepositAllocationById(allocationId) {
+    if (!this.isConnected()) {
+      return null;
+    }
+
+    const query = 'SELECT * FROM btc_deposit_addresses WHERE allocation_id = $1';
+
+    try {
+      const result = await this.pool.query(query, [allocationId]);
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error fetching BTC deposit allocation:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update allocation when funding tx detected
+   * @param {string} allocationId
+   * @param {Object} updates
+   * @returns {Promise<Object|null>}
+   */
+  async markBTCDepositAllocationFunded(allocationId, updates = {}) {
+    if (!this.isConnected()) {
+      return null;
+    }
+
+    const {
+      txHash,
+      amountSatoshis,
+      status = 'funded',
+    } = updates;
+
+    const query = `
+      UPDATE btc_deposit_addresses
+      SET status = $2,
+          funded_tx_hash = COALESCE($3, funded_tx_hash),
+          funded_amount_satoshis = COALESCE($4, funded_amount_satoshis),
+          funded_at = COALESCE($5, funded_at),
+          updated_at = NOW()
+      WHERE allocation_id = $1
+      RETURNING *
+    `;
+
+    try {
+      const result = await this.pool.query(query, [
+        allocationId,
+        status,
+        txHash || null,
+        amountSatoshis !== undefined ? amountSatoshis : null,
+        updates.fundedAt ? new Date(updates.fundedAt) : new Date()
+      ]);
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error marking BTC allocation funded:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update allocation when SOL payout is complete
+   * @param {string} allocationId
+   * @param {Object} updates
+   * @returns {Promise<Object|null>}
+   */
+  async markBTCDepositAllocationClaimed(allocationId, updates = {}) {
+    if (!this.isConnected()) {
+      return null;
+    }
+
+    const query = `
+      UPDATE btc_deposit_addresses
+      SET status = $2,
+          claimed_tx_hash = COALESCE($3, claimed_tx_hash),
+          solana_tx_signature = COALESCE($4, solana_tx_signature),
+          updated_at = NOW()
+      WHERE allocation_id = $1
+      RETURNING *
+    `;
+
+    try {
+      const result = await this.pool.query(query, [
+        allocationId,
+        updates.status || 'claimed',
+        updates.claimedTxHash || null,
+        updates.solanaTxSignature || null,
+      ]);
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error marking BTC allocation claimed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get BTC deposit by transaction hash
    * @param {string} txHash - Transaction hash
    * @returns {Promise<Object|null>} Deposit data

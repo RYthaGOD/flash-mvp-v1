@@ -1,78 +1,107 @@
 @import './styles/fonts.css';
 
 :root {
-  /* Enhanced Color Palette */
-  --color-primary: #e7b240;          /* Indigo */
-  --color-primary-dark: #ebdc0e;     /* Darker indigo */
-  --color-secondary: #f59e0b;        /* Amber */
-  --color-secondary-dark: #d97706;   /* Darker amber */
-  --color-accent: #06b6d4;           /* Cyan */
-  --color-accent-dark: #000708;      /* Darker cyan */
+  /* ═══════════════════════════════════════════════════════════════════════════
+     FLASH Bridge Design System
+     A cohesive dark theme with gold/amber accents
+     ═══════════════════════════════════════════════════════════════════════════ */
 
-  /* Background */
+  /* Primary Colors - Gold/Amber brand identity */
+  --color-primary: #e7b240;
+  --color-primary-dark: #c9962e;
+  --color-primary-light: #f5c961;
+  --color-secondary: #f59e0b;
+  --color-secondary-dark: #d97706;
+  --color-accent: #06b6d4;
+  --color-accent-dark: #0891b2;
+
+  /* Background - Deep dark with subtle warm undertones */
   --color-bg: #050505;
   --color-bg-gradient:
-    radial-gradient(circle at 15% 20%, rgba(255, 77, 103, 0.35), transparent 45%),
-    radial-gradient(circle at 80% 0%, rgba(245, 194, 86, 0.22), transparent 35%),
-    linear-gradient(135deg, #030303 0%, #050505 45%, #080808 100%);
+    radial-gradient(ellipse at 15% 10%, rgba(231, 178, 64, 0.12), transparent 50%),
+    radial-gradient(ellipse at 85% 20%, rgba(245, 158, 11, 0.08), transparent 45%),
+    radial-gradient(ellipse at 50% 80%, rgba(6, 182, 212, 0.05), transparent 50%),
+    linear-gradient(180deg, #030303 0%, #050505 50%, #080808 100%);
 
-  /* Neutral Colors */
+  /* Text Colors */
   --color-text-primary: #f7f2ea;
-  --color-text-secondary: #6b7280;
-  --color-text-muted: rgba(247, 242, 234, 0.65);
-  --color-surface: rgba(14, 14, 17, 0.78);
-  --color-surface-alt: rgba(20, 20, 24, 0.82);
+  --color-text-secondary: #9ca3af;
+  --color-text-muted: rgba(247, 242, 234, 0.6);
+
+  /* Surface Colors - Glass morphism base */
+  --color-surface: rgba(12, 12, 15, 0.85);
+  --color-surface-alt: rgba(18, 18, 22, 0.9);
+  --color-surface-hover: rgba(25, 25, 30, 0.9);
+
+  /* Border Colors */
   --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-light: rgba(0, 0, 0, 0.04);
+  --color-border-hover: rgba(255, 255, 255, 0.15);
+  --color-border-active: rgba(231, 178, 64, 0.4);
 
   /* Status Colors */
   --color-success: #10b981;
+  --color-success-light: #6ee7b7;
   --color-success-bg: rgba(16, 185, 129, 0.1);
   --color-warning: #f59e0b;
+  --color-warning-light: #fcd34d;
   --color-warning-bg: rgba(245, 158, 11, 0.1);
   --color-error: #ef4444;
+  --color-error-light: #fca5a5;
   --color-error-bg: rgba(239, 68, 68, 0.1);
+  --color-info: #3b82f6;
+  --color-info-light: #93c5fd;
+  --color-info-bg: rgba(59, 130, 246, 0.1);
 
   /* Gradients */
-  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   --gradient-secondary: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
   --gradient-accent: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
-  --gradient-surface: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  --gradient-surface: linear-gradient(155deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+  --gradient-glass: linear-gradient(155deg, rgba(10, 10, 12, 0.9), rgba(5, 5, 6, 0.55));
 
   /* Shadows */
-  --shadow-soft: 0 2px 15px rgba(0, 0, 0, 0.08);
-  --shadow-medium: 0 4px 25px rgba(0, 0, 0, 0.12);
-  --shadow-strong: 0 8px 35px rgba(0, 0, 0, 0.16);
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.25);
+  --shadow-medium: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --shadow-strong: 0 16px 48px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 30px rgba(231, 178, 64, 0.2);
+  --shadow-glow-strong: 0 0 50px rgba(231, 178, 64, 0.3);
+  --shadow-inset: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 
   /* Typography */
   --font-family: 'PolySans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
 
-  /* Spacing */
+  /* Spacing Scale */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
   --spacing-2xl: 3rem;
+  --spacing-3xl: 4rem;
 
   /* Border Radius */
-  --radius-sm: 6px;
+  --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
   --radius-full: 9999px;
 
   /* Transitions */
   --transition-fast: 0.15s ease-out;
-  --transition-normal: 0.3s ease-out;
-  --transition-slow: 0.5s ease-out;
+  --transition-normal: 0.25s ease-out;
+  --transition-slow: 0.4s ease-out;
 
-  /* Legacy colors for backward compatibility */
-  --color-danger: #ef4444;
-  --color-positive: #10b981;
-  --blur-heavy: blur(28px);
+  /* Blur Effects */
+  --blur-sm: blur(8px);
+  --blur-md: blur(16px);
+  --blur-lg: blur(24px);
+  --blur-heavy: blur(32px);
+
+  /* Legacy aliases for backward compatibility */
+  --color-danger: var(--color-error);
+  --color-positive: var(--color-success);
 }
 
 * {

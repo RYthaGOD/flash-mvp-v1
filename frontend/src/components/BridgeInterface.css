@@ -1,247 +1,109 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FLASH Bridge Interface - Dark Theme with Glass Morphism
+   Unified with the rest of the application's design system
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .bridge-container {
   width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
+  max-width: 100%;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Main Card
+   ───────────────────────────────────────────────────────────────────────────── */
 .bridge-card {
-  background: white;
-  border-radius: 20px;
-  padding: 40px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(155deg, rgba(10, 10, 12, 0.9), rgba(5, 5, 6, 0.55));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 2rem;
+  backdrop-filter: blur(24px);
+  box-shadow: 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 20px 40px rgba(0, 0, 0, 0.55);
 }
 
 .bridge-title {
-  font-size: 2.5rem;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
   font-weight: 700;
   text-align: center;
-  background: linear-gradient(135deg, #DC143C 0%, #FFD700 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 10px;
-  text-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
 }
 
 .bridge-subtitle {
   text-align: center;
-  color: #666;
-  margin-bottom: 30px;
-  font-size: 1.1rem;
-}
-
-.wallet-section {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 30px;
-}
-
-.info-box {
-  background: #f5f5f5;
-  border-radius: 10px;
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
-.wallet-address {
-  font-family: monospace;
-  font-size: 0.85rem;
-  word-break: break-all;
-  margin-top: 10px;
-  color: #333;
-}
-
-.bridge-form {
-  margin: 20px 0;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-group label {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: #333;
-}
-
-.form-group input[type="number"] {
-  width: 100%;
-  padding: 12px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  font-size: 1.1rem;
-  transition: border-color 0.3s;
-}
-
-.form-group input[type="number"]:focus {
-  outline: none;
-  border-color: #DC143C;
-  box-shadow: 0 0 0 3px rgba(220, 20, 60, 0.1);
-}
-
-.checkbox-group label {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.checkbox-group input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
-  margin-right: 10px;
-  cursor: pointer;
-}
-
-.checkbox-group span {
-  font-weight: normal;
-}
-
-.helper-text {
-  margin-top: 8px;
-  font-size: 0.85rem;
-  color: #666;
-  line-height: 1.4;
-}
-
-.bridge-button {
-  width: 100%;
-  padding: 16px;
-  background: linear-gradient(135deg, #DC143C 0%, #C41E3A 100%);
-  color: #FFD700;
-  border: 2px solid #FFD700;
-  border-radius: 10px;
-  font-size: 1.1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  box-shadow: 0 4px 15px rgba(220, 20, 60, 0.4);
-}
-
-.bridge-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(220, 20, 60, 0.6);
-  background: linear-gradient(135deg, #C41E3A 0%, #DC143C 100%);
-}
-
-.bridge-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.message {
-  margin-top: 20px;
-  padding: 20px;
-  border-radius: 10px;
-}
-
-.success-message {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0.05) 100%);
-  border: 2px solid #FFD700;
-  color: #B8860B;
-  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.2);
-}
-
-.success-message h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  color: #FFD700;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-}
-
-.error-message {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.1) 0%, rgba(196, 30, 58, 0.05) 100%);
-  border: 2px solid #DC143C;
-  color: #8B0000;
-  box-shadow: 0 4px 15px rgba(220, 20, 60, 0.2);
-}
-
-.feature-list {
-  list-style: none;
-  padding: 0;
-  margin-top: 15px;
-}
-
-.feature-list li {
-  padding: 8px 0;
-  color: #555;
-}
-
-.warning-box {
-  margin-top: 30px;
-  padding: 15px;
-  background: #fff3cd;
-  border: 2px solid #ffc107;
-  border-radius: 10px;
-  color: #856404;
-  font-size: 0.9rem;
-  text-align: center;
-}
-
-/* Bridge Info Box */
-.bridge-info-box {
-  background: #f8f9fa;
-  border-radius: 10px;
-  padding: 15px;
-  margin-bottom: 20px;
-  border: 1px solid #e0e0e0;
-}
-
-.bridge-info-box h3 {
-  margin: 0 0 10px 0;
+  color: var(--color-text-muted);
+  margin-bottom: 1.5rem;
   font-size: 1rem;
-  color: #333;
+  letter-spacing: 0.02em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Info Boxes & Status Cards
+   ───────────────────────────────────────────────────────────────────────────── */
+.bridge-info-box,
+.info-box,
+.workflow-steps {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  backdrop-filter: blur(12px);
+}
+
+.bridge-info-box h3,
+.workflow-steps h3 {
+  margin: 0 0 1rem 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
 .info-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
 }
 
 .info-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.35rem;
 }
 
 .info-label {
-  font-size: 0.85rem;
-  color: #666;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .info-value {
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
+  font-size: 0.95rem;
 }
 
 .status-active {
-  color: #FFD700;
-  font-weight: 700;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  color: var(--color-success) !important;
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
 }
 
-/* Workflow Steps */
-.workflow-steps {
-  margin: 20px 0;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 10px;
-}
-
-.workflow-steps h3 {
-  margin: 0 0 15px 0;
-  font-size: 1rem;
-  color: #333;
-}
-
+/* ─────────────────────────────────────────────────────────────────────────────
+   Workflow Steps Timeline
+   ───────────────────────────────────────────────────────────────────────────── */
 .steps-container {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 0.5rem;
   position: relative;
 }
 
@@ -251,120 +113,361 @@
   align-items: center;
   flex: 1;
   position: relative;
+  z-index: 1;
 }
 
 .step-number {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  font-size: 0.9rem;
-  margin-bottom: 8px;
-  transition: all 0.3s;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
 }
 
 .workflow-step.pending .step-number {
-  background: #e0e0e0;
-  color: #999;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--color-text-muted);
 }
 
 .workflow-step.active .step-number {
-  background: linear-gradient(135deg, #DC143C 0%, #C41E3A 100%);
-  color: #FFD700;
-  border: 2px solid #FFD700;
-  animation: pulse 2s infinite;
-  box-shadow: 0 0 20px rgba(220, 20, 60, 0.6);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  border-color: transparent;
+  color: #050505;
+  animation: stepPulse 2s ease-in-out infinite;
+  box-shadow: 
+    0 0 20px rgba(231, 178, 64, 0.4),
+    0 0 40px rgba(231, 178, 64, 0.2);
 }
 
 .workflow-step.completed .step-number {
-  background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-  color: #DC143C;
-  border: 2px solid #DC143C;
-  box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--color-success);
+  color: var(--color-success);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
 }
 
 .step-name {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-align: center;
-  color: #666;
+  color: var(--color-text-muted);
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  max-width: 80px;
 }
 
 .workflow-step.active .step-name {
-  color: #DC143C;
-  font-weight: 700;
-  text-shadow: 0 0 10px rgba(220, 20, 60, 0.5);
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .workflow-step.completed .step-name {
-  color: #FFD700;
-  font-weight: 700;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  color: var(--color-success);
 }
 
 .step-connector {
   position: absolute;
-  top: 16px;
-  left: 50%;
-  width: 100%;
+  top: 18px;
+  left: calc(50% + 22px);
+  width: calc(100% - 44px);
   height: 2px;
-  background: #e0e0e0;
-  z-index: -1;
+  background: rgba(255, 255, 255, 0.08);
+  z-index: 0;
 }
 
-.workflow-step.completed + .workflow-step .step-connector {
-  background: linear-gradient(90deg, #FFD700 0%, #DC143C 100%);
+.workflow-step.completed .step-connector {
+  background: linear-gradient(90deg, var(--color-success), rgba(255, 255, 255, 0.08));
 }
 
-@keyframes pulse {
+@keyframes stepPulse {
   0%, 100% {
     transform: scale(1);
+    box-shadow: 
+      0 0 20px rgba(231, 178, 64, 0.4),
+      0 0 40px rgba(231, 178, 64, 0.2);
   }
   50% {
-    transform: scale(1.1);
+    transform: scale(1.08);
+    box-shadow: 
+      0 0 30px rgba(231, 178, 64, 0.5),
+      0 0 60px rgba(231, 178, 64, 0.3);
   }
 }
 
-/* Status Message */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Wallet Section
+   ───────────────────────────────────────────────────────────────────────────── */
+.wallet-section {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.wallet-address {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  word-break: break-all;
+  margin-top: 0.75rem;
+  color: var(--color-text-primary);
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Form Styles
+   ───────────────────────────────────────────────────────────────────────────── */
+.bridge-form {
+  margin: 1.5rem 0;
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.form-group input[type="number"] {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  font-size: 1.1rem;
+  font-weight: 500;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--color-text-primary);
+  transition: all 0.25s ease;
+  font-family: var(--font-mono);
+}
+
+.form-group input[type="number"]:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 
+    0 0 0 3px rgba(231, 178, 64, 0.15),
+    0 0 20px rgba(231, 178, 64, 0.1);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.form-group input[type="number"]::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.helper-text {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Primary Button
+   ───────────────────────────────────────────────────────────────────────────── */
+.bridge-button {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  color: #050505;
+  border: none;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 
+    0 8px 24px rgba(231, 178, 64, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.bridge-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.25),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.bridge-button:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.bridge-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 32px rgba(231, 178, 64, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.bridge-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.bridge-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Messages & Alerts
+   ───────────────────────────────────────────────────────────────────────────── */
+.message {
+  margin-top: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 16px;
+  border: 1px solid;
+  backdrop-filter: blur(12px);
+}
+
+.success-message {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.04));
+  border-color: rgba(16, 185, 129, 0.3);
+  color: var(--color-text-primary);
+}
+
+.success-message h3 {
+  margin: 0 0 1rem 0;
+  color: var(--color-success);
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error-message {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(239, 68, 68, 0.04));
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.info-box p {
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.info-box strong {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Feature List
+   ───────────────────────────────────────────────────────────────────────────── */
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0 0;
+}
+
+.feature-list li {
+  padding: 0.6rem 0;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.feature-list li:last-child {
+  border-bottom: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Warning Box
+   ───────────────────────────────────────────────────────────────────────────── */
+.warning-box {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.03));
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 12px;
+  color: #fcd34d;
+  font-size: 0.85rem;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Status Message
+   ───────────────────────────────────────────────────────────────────────────── */
 .status-message {
-  margin: 15px 0;
-  padding: 12px;
-  border-radius: 8px;
+  margin: 1rem 0;
+  padding: 0.875rem 1.25rem;
+  border-radius: 12px;
   text-align: center;
   font-weight: 500;
+  font-size: 0.9rem;
+  border: 1px solid;
 }
 
 .status-message.info {
-  background: #e3f2fd;
-  color: #1976d2;
-  border: 1px solid #90caf9;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.03));
+  border-color: rgba(59, 130, 246, 0.25);
+  color: #93c5fd;
 }
 
 .status-message.success {
-  background: #e8f5e9;
-  color: #2e7d32;
-  border: 1px solid #4caf50;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.03));
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
 }
 
 .status-message.error {
-  background: #ffebee;
-  color: #c62828;
-  border: 1px solid #f44336;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.03));
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
 }
 
-/* Result Details */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Result Details
+   ───────────────────────────────────────────────────────────────────────────── */
 .result-details {
-  margin-top: 15px;
+  margin-top: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 0.25rem 0;
+  overflow: hidden;
 }
 
 .detail-row {
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #e0e0e0;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .detail-row:last-child {
@@ -372,52 +475,74 @@
 }
 
 .detail-label {
-  font-weight: 600;
-  color: #666;
-  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
 }
 
 .detail-value {
-  color: #333;
-  font-size: 0.9rem;
+  color: var(--color-text-primary);
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
   word-break: break-all;
   text-align: right;
+  max-width: 60%;
 }
 
 .tx-link a {
-  color: #DC143C;
+  color: var(--color-primary);
   text-decoration: none;
   font-weight: 600;
+  transition: color 0.2s ease;
 }
 
 .tx-link a:hover {
-  color: #FFD700;
+  color: var(--color-secondary);
   text-decoration: underline;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
 }
 
 .status-pending {
-  color: #ff9800;
+  color: #fcd34d !important;
 }
 
 .status-confirmed {
-  color: #FFD700;
-  font-weight: 700;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  color: var(--color-success) !important;
+  font-weight: 600;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Responsive Design
+   ───────────────────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .bridge-card {
-    padding: 20px;
+    padding: 1.5rem;
+    border-radius: 20px;
   }
 
   .bridge-title {
-    font-size: 2rem;
+    font-size: 1.75rem;
   }
 
   .steps-container {
     flex-direction: column;
-    gap: 15px;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  .workflow-step {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 1rem;
+  }
+
+  .step-number {
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+
+  .step-name {
+    text-align: left;
+    max-width: none;
   }
 
   .step-connector {
@@ -426,5 +551,32 @@
 
   .info-grid {
     grid-template-columns: 1fr;
+  }
+
+  .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .detail-value {
+    text-align: left;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .bridge-card {
+    padding: 1.25rem;
+  }
+
+  .form-group input[type="number"] {
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
+  }
+
+  .bridge-button {
+    padding: 0.875rem 1.25rem;
+    font-size: 0.9rem;
   }
 }

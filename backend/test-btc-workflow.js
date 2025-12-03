@@ -9,7 +9,7 @@
  *   node test-btc-workflow.js 180a0ccee8b2d40e8353fd9441ac9e35a79c8065433b0b1838883276de968578 YourSolanaAddress...
  */
 
-const axios = require('axios');
+const axios = require('./axiosClient');
 require('dotenv').config();
 
 const API_URL = process.env.API_URL || 'http://localhost:3001';

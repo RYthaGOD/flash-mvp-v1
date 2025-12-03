@@ -4,7 +4,7 @@
  * Claim BTC Deposit - Quick Test Script
  */
 
-const axios = require('axios');
+const axios = require('./axiosClient');
 require('dotenv').config();
 
 const API_URL = process.env.API_URL || 'http://localhost:3001';

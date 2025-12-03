@@ -20,8 +20,8 @@ global.testUtils = {
   // Mock transaction hashes
   mockTxHashes: {
     solana: '5xKpN2BqN4hG7VJw8LjkL8MjQZBx8F4qGzWkJcQkN6N',
-    bitcoin: 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z',
-    zcash: 'zec1testtxhash123456789012345678901234567890'
+    bitcoin: '6H7J8K9MNpqrstuvWXyz23456789ABCDEFGHJKLMNP',
+    zcash: '5ABCDEfghijkMNopqrstUVWXYZ23456789abcdefgh'
   },
 
   // Helper to create mock requests

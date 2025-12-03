@@ -638,38 +638,46 @@
   }
 }
 
-/* Bitcoin Wallet Styles */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Bitcoin Wallet Styles - Matching Solana Wallet Adapter
+   ═══════════════════════════════════════════════════════════════════════════ */
 .bitcoin-wallet {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  min-width: 180px;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(247, 147, 26, 0.08);
+  border: 1px solid rgba(247, 147, 26, 0.2);
+  border-radius: 12px;
+  min-width: 160px;
+  position: relative;
 }
 
 .wallet-info.bitcoin-wallet {
-  background: rgba(255, 140, 0, 0.1);
-  border-color: rgba(255, 140, 0, 0.3);
+  background: rgba(247, 147, 26, 0.1);
+  border-color: rgba(247, 147, 26, 0.25);
 }
 
 .wallet-connect.bitcoin-wallet {
-  background: rgba(255, 255, 255, 0.05);
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
 .wallet-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.8);
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .wallet-icon {
-  font-size: 14px;
+  font-size: 1rem;
+  color: #f7931a;
 }
 
 .wallet-label {
@@ -680,107 +688,163 @@
 .wallet-details {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.25rem;
 }
 
 .wallet-address {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.9);
-  background: rgba(0, 0, 0, 0.2);
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--color-text-primary);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .wallet-balance {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
 }
 
 .wallet-network {
-  font-size: 9px;
-  color: #00d4aa;
-  margin-top: 2px;
-  font-weight: 500;
+  font-size: 0.65rem;
+  color: var(--color-success);
+  font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .disconnect-btn {
-  background: rgba(255, 59, 48, 0.8);
-  border: none;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 10px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--color-error-light);
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 0.25rem;
 }
 
 .disconnect-btn:hover {
-  background: rgba(255, 59, 48, 1);
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.5);
 }
 
 .wallet-connect-btn {
-  background: rgba(255, 140, 0, 0.8);
+  background: linear-gradient(135deg, #f7931a 0%, #e6820a 100%);
   border: none;
-  color: white;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
+  color: #050505;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  width: 100%;
+  transition: all 0.25s ease;
+  box-shadow: 
+    0 8px 24px rgba(247, 147, 26, 0.2),
+    0 2px 8px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
 }
 
-.wallet-connect-btn:hover {
-  background: rgba(255, 140, 0, 1);
+.wallet-connect-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.4s ease;
+}
+
+.wallet-connect-btn:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.wallet-connect-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 32px rgba(247, 147, 26, 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.wallet-connect-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .wallet-options {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 0.5rem);
   right: 0;
-  background: rgba(0, 0, 0, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 8px;
-  margin-top: 4px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 0.5rem;
   z-index: 1000;
-  min-width: 120px;
+  min-width: 140px;
+  box-shadow: var(--shadow-medium);
 }
 
 .wallet-option {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
-  background: none;
+  background: transparent;
   border: none;
-  color: white;
-  padding: 6px 8px;
+  color: var(--color-text-primary);
+  padding: 0.6rem 0.75rem;
   text-align: left;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 12px;
-  transition: background 0.2s ease;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
 .wallet-option:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .wallet-error {
-  background: rgba(255, 59, 48, 0.1);
-  border: 1px solid rgba(255, 59, 48, 0.3);
-  color: #ff6b6b;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  margin-top: 4px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: var(--color-error-light);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+  line-height: 1.4;
 }
 
-/* Update wallet button wrapper for dual wallets */
+/* Wallet button wrapper for dual wallets */
 .wallet-button-wrapper {
   display: flex;
-  gap: 12px;
+  gap: 0.75rem;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .wallet-button-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  
+  .bitcoin-wallet {
+    width: 100%;
+  }
 }

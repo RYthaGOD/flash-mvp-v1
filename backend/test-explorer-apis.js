@@ -1,4 +1,4 @@
-const axios = require('axios');
+const axios = require('./axiosClient');
 
 const testAddress = 'tb1qug4w70zdr40clj9qecy67tx58e24lk90whzy9l';
 

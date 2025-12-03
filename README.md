@@ -1,359 +1,386 @@
-# 🔒 FLASH Bridge
+# ⚡ FLASH Bridge
 
-**BTC → ZEC (Shielded) → Solana Cross-Chain Bridge**
+**Privacy-Preserving BTC → SOL Bridge with Arcium MPC**
 
-*Built with cryptographic proofs and custom MXE for Arcium MPC integration*
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
+[![Docker](https://img.shields.io/badge/docker-ready-blue)]()
 
----
-
-## 🚀 Overview
-
-FLASH Bridge is a cross-chain bridge connecting Bitcoin, Zcash, and Solana blockchains. It implements cryptographic proofs for transaction verification and includes a complete custom MXE implementation ready for Arcium MPC deployment.
-
-### ✨ Features
-
-🛡️ **Privacy & Security**
-- Cryptographic proofs for transaction verification
-- HMAC-SHA256 signatures with institutional key management
-- Merkle tree proofs for transaction inclusion
-- Chain of custody tracking for audit trails
-
-⚡ **Production Ready**
-- Crash prevention with comprehensive error handling
-- Database persistence with PostgreSQL
-- Circuit breaker protection against external API failures
-- Health monitoring and automatic recovery
-
-🔗 **Multi-Chain Bridge**
-- BTC → ZEC (Shielded) → Native ZEC on Solana bridge operations
-- Reverse flows: SOL → Native ZEC → BTC
-- Zcash shielded addresses support
-- Native ZEC token transfers (official Solana ZEC token)
+FLASH Bridge enables trustless Bitcoin to Solana transfers with privacy-preserving Multi-Party Computation (MPC) powered by Arcium.
 
 ---
 
-## 🏗️ **Architecture Overview**
+## 🎯 Features
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Bitcoin       │ -> │   Zcash         │ -> │   Solana        │
-│   (BTC)         │    │   (Shielded)    │    │   (Native ZEC)  │
-│                 │    │   MPC Privacy   │    │                 │
-│  Payment TX     │    │   Encryption    │    │  Native Token   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-       ↓                        ↓                        ↓
-   Exchange Rate         Treasury Transfer         Auto-Swap
-   Calculation           (Native ZEC)                    ↓
-       ↓                        ↓                 SOL Transfer
-   ZEC Amount ──────────────────────────────────────────┘
-```
-
-### 🔐 **Custom MXE Operations**
-
-| Operation | Privacy Benefit | Use Case |
-|-----------|----------------|----------|
-| `encrypt_bridge_amount` | Hide transaction amounts | Cross-chain transfers |
-| `verify_bridge_transaction` | Private compliance checks | Institutional verification |
-| `calculate_swap_amount` | Prevent front-running | DEX integrations |
-| `encrypt_btc_address` | Address privacy | Withdrawal protection |
+- **🔐 Privacy-Preserving** - Arcium MPC encrypts transaction amounts and addresses
+- **⚡ Fast Transfers** - BTC deposits confirmed and SOL delivered quickly
+- **🛡️ Trustless** - No custodian, cryptographic proofs for every transaction
+- **📊 Institutional Grade** - Full audit trail with cryptographic proofs
+- **🐳 Docker Ready** - One-command deployment
+- **📚 API Documentation** - OpenAPI/Swagger included
 
 ---
 
-## 🚀 **Quick Start**
+## 🚀 Quick Start
 
 ### Prerequisites
-- **Node.js 18+**
-- **Git**
-- **For Real MPC**: Arcium API key (contact team with our MXE)
 
-### Installation
+- Docker & Docker Compose
+- Solana CLI (for keypair generation)
+- Node.js 18+ (optional, for local development)
+
+### 1. Clone & Setup
 
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone https://github.com/your-org/flash-bridge.git
 cd flash-bridge
 
-# Setup backend with simulation mode
-cd backend
-cp .env.example .env
-npm install
-npm start
+# Run setup script
+# Windows:
+.\scripts\setup.ps1
 
-# Setup frontend (new terminal)
-cd ../frontend
-npm install
-npm start
+# Linux/Mac:
+./scripts/setup.sh
 ```
 
-### Access Points
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:3001
-- **MXE Documentation:** `flash-bridge-mxe/README.md`
+### 2. Configure Environment
 
----
+Edit `backend/.env` with your values:
 
-## 🎮 **Bridge Flows**
-
-### **Privacy Bridge (BTC → ZEC → Native ZEC on Solana)**
-```
-User BTC Payment → Exchange Rate → Treasury Transfer → Native ZEC on Solana
-                     Calculation      (Native ZEC)         (Official Token)
-                     ↑                    ↑                          ↑
-                Rate-Based          Treasury Reserve      Native ZEC Token
-```
-
-### **ZEC Direct Bridge (ZEC → Native ZEC on Solana)**
-```
-Zcash Payment → Verification → Treasury Transfer → Native ZEC on Solana
-                     ↑                ↑                      ↑
-                Shielded TX      Native ZEC          Official Token
-```
-
-### **Auto-Swap (Native ZEC → SOL)**
-```
-Native ZEC Token → Encrypted Amount → MPC Swap Calculation → SOL Transfer
-```
-
-### **Reverse Bridge (SOL → Native ZEC → BTC)**
-```
-SOL Payment → Native ZEC Transfer → Encrypted BTC Address → BTC Withdrawal
-```
-
----
-
-## 🏗️ **System Components**
-
-### **Custom MXE (`flash-bridge-mxe/`)**
-- **Bridge-specific MPC operations** using Arcis framework
-- **Encrypted instructions** for privacy-preserving computations
-- **Arcium program integration** with Solana blockchain
-
-### **Backend API (`backend/`)**
-**19 API endpoints** including:
-- **Bridge Operations**: Transfer native ZEC, transaction status, bridge info
-- **Zcash Integration**: Transaction verification, price fetching
-- **Bitcoin Integration**: BTC payment verification (exchange rate-based)
-- **Arcium MPC Privacy**: Encrypted operations, private verification
-- **Relayer Service**: Event monitoring, automatic SOL swaps
-
-### **Frontend (`frontend/`)**
-- **React/TypeScript** with wallet integration
-- **Solana Wallet Adapter** (Phantom, Solflare)
-- **WebZjs integration** for Zcash wallet support
-- **Real-time transaction status** and responsive design
-
----
-
-## 🔌 **API Endpoints**
-
-> **Admin Security**  
-> Endpoints marked with 🛡 require the `x-api-key` header. Set `ADMIN_API_KEY` in `backend/.env` and call using:
-> ```bash
-> curl -H "x-api-key: $ADMIN_API_KEY" http://localhost:3001/api/bridge/transfer-metadata/<signature>
-> ```
-> **Client Requests**  
-> If you set `CLIENT_API_KEY`, every browser/mobile POST must send `x-client-id: <CLIENT_API_KEY>` to hit mutation endpoints such as `/api/bridge` or `/api/zcash/*`. This acts as a lightweight CSRF guard for first-party apps.
-
-### Bridge Operations
-```http
-POST /api/bridge              # Transfer native ZEC tokens
-GET  /api/bridge/info         # Bridge configuration
-GET  /api/bridge/transaction/:txId  # Transaction status
-POST /api/bridge/jupiter-swap # Swap native ZEC for other tokens
-POST /api/bridge/btc-deposit  # Claim BTC deposit (exchange rate-based)
-POST /api/bridge/mark-redemption 🛡  # Admin override to mark redemption
-GET  /api/bridge/transfer-metadata/:signature 🛡 # View transfer metadata
-```
-
-### Zcash Integration
-```http
-GET  /api/zcash/verify        # Verify Zcash transaction
-GET  /api/zcash/price         # Get ZEC price
-POST /api/zcash/validate      # Validate Zcash address
-```
-
-### Arcium MPC Privacy
-```http
-POST /api/arcium/encrypt      # Encrypt bridge amount
-POST /api/arcium/verify       # Private verification
-POST /api/arcium/random       # Trustless random generation
-```
-
----
-
-
-## ⚙️ **Environment Configuration**
-
-### Backend `.env`
 ```env
-PORT=3001
-FRONTEND_ORIGIN=http://localhost:3000
-SOLANA_RPC_URL=https://api.devnet.solana.com
-SOLANA_NETWORK=devnet
-PROGRAM_ID=YourProgramIdHere
+# Required
+BITCOIN_BRIDGE_ADDRESS=tb1q_your_testnet_address
+DB_PASSWORD=your_secure_password
+ADMIN_API_KEY=your_64_char_api_key
 
-# Native ZEC Configuration (Recommended)
-USE_NATIVE_ZEC=true
-NATIVE_ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS  # Official native ZEC on Solana
-
-# Bitcoin Configuration (Exchange Rate-Based)
-BITCOIN_NETWORK=testnet
-BITCOIN_BRIDGE_ADDRESS=your_btc_address
-BITCOIN_EXPLORER_URL=https://blockstream.info/testnet/api
-FALLBACK_BTC_TO_ZEC_RATE=1
-
-# Zcash Configuration
-ZCASH_NETWORK=testnet
-ZCASH_BRIDGE_ADDRESS=your_zcash_address
-
-# Relayer Configuration
-ENABLE_RELAYER=false
-RELAYER_KEYPAIR_PATH=~/.config/solana/id.json
-
-# Admin Security
-ADMIN_API_KEY=change-me-admin-key
-# Optional client signature for browser requests
-CLIENT_API_KEY=optional-client-key
-
-# Arcium MPC (for real privacy)
+# Arcium MPC (simulation for testing)
 ENABLE_ARCIUM_MPC=true
-ARCIUM_SIMULATED=true          # Set false for real MPC
-ARCIUM_USE_REAL_SDK=false      # Set true with API key
-ARCIUM_API_KEY=your_key_here   # From Arcium
+ARCIUM_SIMULATED=true
 ```
 
-### Frontend `.env`
-```env
-REACT_APP_API_URL=http://localhost:3001
-```
+### 3. Generate Keypair
 
----
-
-## 🧪 **Testing & Demo**
-
-### Automated Testing
 ```bash
-# Test all workflows automatically
-./scripts/demo-test.sh
-
-# Expected: All tests pass ✓
-# Tests 19+ endpoints across all services
+solana-keygen new -o keys/relayer-keypair.json
+solana airdrop 2 $(solana-keygen pubkey keys/relayer-keypair.json) --url devnet
 ```
 
-### Demo Workflows
-1. **Basic Bridge** (2 min) - Native ZEC transfer from treasury
-2. **Bitcoin Bridge** (3 min) - BTC → Native ZEC (exchange rate-based)
-3. **Zcash Verification** (3 min) - Real ZEC transaction verification
-4. **Full Privacy** (4 min) - Arcium MPC encrypted transactions
-5. **Swap & Burn** (3 min) - Complete bridge lifecycle
-6. **API Integration** (2 min) - Developer experience
+### 4. Deploy
 
-### Manual Testing
-See [`HACKATHON_DEMO.md`](./HACKATHON_DEMO.md) for complete 10-minute demo script.
+```bash
+# Windows
+.\scripts\deploy.ps1
 
----
+# Linux/Mac
+./scripts/deploy.sh
+```
 
-## 📊 **Current Status**
+### 5. Access
 
-### ✅ **MVP Complete - Demo Ready**
-- **Core Features:** Bridge transactions with native ZEC support
-- **Bitcoin Integration:** Exchange rate-based BTC → ZEC conversion
-- **Native ZEC:** Official Solana ZEC token integration
-- **Privacy:** Arcium MPC encryption implemented
-- **Crash Prevention:** Enterprise-grade stability features
-- **Documentation:** Comprehensive setup and architecture guides
-
-### 🚧 **Production Roadmap**
-- **Phase 1:** Security audit & mainnet deployment
-- **Phase 2:** Mobile app & additional chains
-- **Phase 3:** Enterprise features & API marketplace
-- **Phase 4:** Decentralized relayer network
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:3001 |
+| API Docs | http://localhost:3001/api/v1/docs |
+| Health Check | http://localhost:3001/health |
 
 ---
 
-## 🔑 **MPC Integration Status**
+## 📋 Architecture
 
-### **Current: Enhanced Simulation**
-- ✅ **Native ZEC Support:** Official Solana ZEC token integration
-- ✅ **Bitcoin Flow:** Exchange rate-based BTC conversion (simplified)
-- ✅ **Privacy Features:** All MPC operations simulated
-- ✅ **Bridge Functionality:** Full cross-chain transfers
-- ✅ **Institutional Proofs:** Cryptographic verification ready
-- ✅ **Enterprise Stability:** Crash prevention implemented
-
-### **Next: Real Arcium MPC**
-- 🔄 **Custom MXE:** Complete implementation ready (`flash-bridge-mxe/`)
-- 🔄 **API Key:** Contact Arcium with our MXE for access
-- 🔄 **Deployment:** Launch custom operations on Arcium network
-- 🔄 **Migration:** Switch from simulation to real MPC
-
----
-
-**Our custom MXE implementation demonstrates serious commitment.
-
-1. **Contact:** Reach out via [@moneybag_fin](https://twitter.com/moneybag_fin) or use template in `ARCIUM_CONTACT_TEMPLATE.md`
-2. **Request:** API key for custom bridge operations
-3. **Deploy:** Launch real MPC privacy operations
-
----
-
-## 🤝 **Contributing**
-
-We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
-### **Key Areas:**
-- **MXE Development:** Custom MPC operations
-- **Multi-chain Support:** Additional blockchain integrations
-- **Privacy Research:** Advanced cryptographic techniques
-- **Documentation:** Developer guides and tutorials
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         FLASH Bridge Architecture                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐          │
+│  │   Frontend   │───►│   Backend    │───►│  PostgreSQL  │          │
+│  │   (React)    │    │   (Express)  │    │   Database   │          │
+│  └──────────────┘    └──────┬───────┘    └──────────────┘          │
+│                             │                                        │
+│                    ┌────────┴────────┐                              │
+│                    │                 │                              │
+│              ┌─────▼─────┐    ┌──────▼──────┐                       │
+│              │  Arcium   │    │   Solana    │                       │
+│              │   MPC     │    │   Network   │                       │
+│              └───────────┘    └─────────────┘                       │
+│                                                                      │
+│  External:                                                           │
+│  ┌───────────────┐    ┌──────────────────┐                         │
+│  │   Bitcoin     │    │     Redis        │                         │
+│  │   Network     │    │  (Rate Limiting) │                         │
+│  └───────────────┘    └──────────────────┘                         │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 📋 **Project Structure**
+## 🔄 Bridge Workflow
+
+### BTC → SOL Transfer
+
+1. **Get Deposit Address** - Request unique BTC address
+2. **Send BTC** - Transfer BTC to deposit address
+3. **Wait for Confirmation** - BTC transaction confirmed
+4. **Claim Deposit** - Initiate claim with Solana wallet
+5. **Receive SOL** - SOL transferred to your wallet
+6. **Get Proof** - Cryptographic proof generated
+
+### API Flow
+
+```bash
+# 1. Allocate deposit address
+POST /api/v1/bridge/btc-address
+{
+  "solanaAddress": "YourSolanaWalletAddress..."
+}
+
+# 2. Check deposit status
+GET /api/v1/bridge/btc-deposit/{txHash}
+
+# 3. Claim deposit
+POST /api/v1/bridge/btc-deposit
+{
+  "solanaAddress": "YourSolanaWalletAddress...",
+  "bitcoinTxHash": "your_btc_tx_hash"
+}
+
+# 4. Get proof
+GET /api/v1/bridge/proof/{txId}
+```
+
+---
+
+## 🔒 Arcium MPC
+
+FLASH Bridge uses Arcium for privacy-preserving computation:
+
+### Setup Options
+
+1. **Simulation Mode** (Development)
+   ```env
+   ARCIUM_SIMULATED=true
+   ```
+
+2. **Local Arcium Node** (Testing)
+   ```bash
+   curl -sSfL https://install.arcium.com | bash
+   arcium localnet
+   ```
+
+3. **Arcium Devnet/Mainnet** (Production)
+   - Register at [arcium.com](https://arcium.com)
+   - Configure cluster ID and node offset
+
+See [docs/ARCIUM_SETUP.md](docs/ARCIUM_SETUP.md) for detailed instructions.
+
+---
+
+## 📁 Project Structure
 
 ```
 flash-bridge/
-├── flash-bridge-mxe/        # Custom Arcium MXE implementation
-│   ├── Arcium.toml         # MXE configuration
-│   ├── programs/src/lib.rs # Solana program with #[arcium_program]
-│   ├── encrypted-ixs/      # MPC operations using Arcis
-│   ├── tests/              # TypeScript test suite
-│   └── README.md           # MXE documentation
-├── backend/                # Node.js API server (19 endpoints)
-│   ├── src/                # Source code
-│   ├── database/           # Schema and migrations
-│   ├── NATIVE_ZEC_SETUP.md # Native ZEC setup guide
-│   ├── TESTING.md          # Testing documentation
-│   └── package.json        # Dependencies
-├── frontend/               # React user interface
-│   ├── src/                # React components
-│   └── package.json        # Dependencies
-├── scripts/                # Development utilities
-├── .github/                # GitHub configuration
-└── docs/                   # Documentation
+├── backend/                 # Express.js API server
+│   ├── src/
+│   │   ├── index.js        # Main entry point
+│   │   ├── routes/         # API routes
+│   │   ├── services/       # Business logic
+│   │   ├── middleware/     # Auth, validation, rate limiting
+│   │   └── utils/          # Helpers
+│   ├── database/           # SQL schemas
+│   └── env-template.txt    # Environment template
+├── frontend/               # React frontend
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   ├── services/       # API client
+│   │   └── contexts/       # React contexts
+│   └── env-template.txt    # Environment template
+├── scripts/                # Deployment scripts
+├── docs/                   # Documentation
+├── nginx/                  # HTTPS configuration
+├── keys/                   # Keypairs (gitignored)
+├── docker-compose.yml      # Docker orchestration
+├── QUICK_START.md          # Quick setup guide
+└── PRODUCTION_CHECKLIST.md # Production deployment checklist
 ```
 
 ---
 
-## ⚠️ **Important Notice**
+## 🔧 Configuration
 
-**This is MVP software for demonstration purposes.**
-- ✅ **Safe for demos** and development
-- ⚠️ **Not audited** for production use
-- 🚫 **Do not use** with real funds
-- 📋 **Contact Arcium** for production MPC integration
+### Environment Variables
+
+See `backend/env-template.txt` for all available options.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ADMIN_API_KEY` | Yes | Admin authentication |
+| `BITCOIN_BRIDGE_ADDRESS` | Yes | BTC deposit address |
+| `DB_PASSWORD` | Yes | PostgreSQL password |
+| `SOLANA_RPC_URL` | Yes | Solana RPC endpoint |
+| `FLASH_BRIDGE_MXE_PROGRAM_ID` | Yes | Deployed program ID |
+| `ENABLE_ARCIUM_MPC` | Yes | Enable privacy features |
+
+### Network Configurations
+
+**Devnet (Testing)**
+```env
+SOLANA_NETWORK=devnet
+SOLANA_RPC_URL=https://api.devnet.solana.com
+BITCOIN_NETWORK=testnet
+```
+
+**Mainnet (Production)**
+```env
+SOLANA_NETWORK=mainnet-beta
+SOLANA_RPC_URL=https://your-rpc-provider.com
+BITCOIN_NETWORK=mainnet
+BITCOIN_REQUIRED_CONFIRMATIONS=3
+```
 
 ---
 
-## 📞 **Contact**
+## 🛡️ Security
 
-**Team FLASH Bridge**
-- **🐦 Twitter:** [@moneybag_fin](https://twitter.com/moneybag_fin)
-- **💬 Telegram:** @RYthaGOD
-- **API Key Request:** Use `ARCIUM_CONTACT_TEMPLATE.md`
-- **GitHub:** [Repository](https://github.com/RYthaGOD/flash-mvp-copilot-merge-all-branches-for-demo)
+### Features
+
+- **Rate Limiting** - IP + Wallet based (Redis for distributed)
+- **Input Validation** - All inputs sanitized
+- **Authentication** - API key + client signature
+- **CORS** - Configurable origin whitelist
+- **Security Headers** - Helmet.js configured
+- **SQL Injection** - Parameterized queries
+
+### Production Recommendations
+
+1. **Use HTTPS** - See [docs/HTTPS_SETUP.md](docs/HTTPS_SETUP.md)
+2. **Rotate API keys** - Regular rotation schedule
+3. **Enable monitoring** - Log aggregation and alerts
+4. **Database backups** - Automated daily backups
 
 ---
 
-## 📄 **License**
+## 📚 Documentation
 
+| Document | Description |
+|----------|-------------|
+| [QUICK_START.md](QUICK_START.md) | 5-minute setup guide |
+| [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) | Production deployment checklist |
+| [docs/HTTPS_SETUP.md](docs/HTTPS_SETUP.md) | SSL/TLS configuration |
+| [docs/ARCIUM_SETUP.md](docs/ARCIUM_SETUP.md) | Arcium MPC setup |
+| [API Docs](http://localhost:3001/api/v1/docs) | Interactive API documentation |
+
+---
+
+## 🧪 Development
+
+### Local Development
+
+```bash
+# Install backend dependencies
+cd backend && npm install
+
+# Install frontend dependencies
+cd frontend && npm install
+
+# Start PostgreSQL and Redis
+docker-compose up -d postgres redis
+
+# Start backend
+cd backend && npm run dev
+
+# Start frontend
+cd frontend && npm start
+```
+
+### Running Tests
+
+```bash
+# Backend tests
+cd backend && npm test
+
+# Frontend tests
+cd frontend && npm test
+```
+
+### Pre-flight Check
+
+```bash
+cd backend && npm run preflight
+```
+
+---
+
+## 🐳 Docker Commands
+
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Restart backend
+docker-compose restart backend
+
+# Stop all services
+docker-compose down
+
+# Full reset (removes data)
+docker-compose down -v
+docker-compose up -d
+```
+
+---
+
+## 📦 Deployment
+
+### Quick Deploy
+
+```bash
+# Windows
+.\scripts\deploy.ps1 production
+
+# Linux/Mac
+./scripts/deploy.sh production
+```
+
+### Manual Deploy
+
+1. Complete [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md)
+2. Configure all environment variables
+3. Run `docker-compose up -d`
+4. Configure HTTPS with Nginx
+5. Verify health checks
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 🆘 Support
+
+- **Documentation**: [docs/](docs/)
+- **Issues**: [GitHub Issues](https://github.com/your-org/flash-bridge/issues)
+- **Discord**: [Join our community](#)
+
+---
+
+**Built with ❤️ for the Solana ecosystem**

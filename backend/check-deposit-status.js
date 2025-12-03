@@ -4,7 +4,7 @@
  * Check Deposit Status - Detailed View
  */
 
-const axios = require('axios');
+const axios = require('./axiosClient');
 require('dotenv').config();
 
 const API_URL = process.env.API_URL || 'http://localhost:3001';

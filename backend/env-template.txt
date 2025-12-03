@@ -1,0 +1,185 @@
+# =============================================================================
+# FLASH Bridge Backend - Environment Configuration
+# =============================================================================
+# Copy this file to .env and fill in your values:
+#   cp env-template.txt .env
+#
+# Required variables are marked with [REQUIRED]
+# Optional variables have sensible defaults
+# =============================================================================
+
+# =============================================================================
+# SERVER CONFIGURATION
+# =============================================================================
+PORT=3001
+# Set to 'production' for strict validation, 'development' for flexible testing
+NODE_ENV=development
+
+# [REQUIRED] Frontend URL for CORS (your deployed frontend URL)
+FRONTEND_ORIGIN=http://localhost:3000
+
+# [REQUIRED] Admin API key - generate with: openssl rand -hex 32
+ADMIN_API_KEY=change-me-generate-a-secure-key
+
+# Optional: Client API key for frontend authentication
+CLIENT_API_KEY=
+
+# =============================================================================
+# SOLANA CONFIGURATION
+# =============================================================================
+# [REQUIRED] Solana network: devnet, testnet, or mainnet-beta
+SOLANA_NETWORK=devnet
+
+# [REQUIRED] Solana RPC URL - use a reliable provider for production
+# Free options: https://api.devnet.solana.com (devnet)
+# Paid options: Helius, QuickNode, Alchemy
+SOLANA_RPC_URL=https://api.devnet.solana.com
+
+# [REQUIRED] Your deployed Flash Bridge program ID
+FLASH_BRIDGE_MXE_PROGRAM_ID=CULoJigMJeVrmXVYPu8D9pdmfjAZnzdAwWvTqWvz1XkP
+
+# [REQUIRED] Path to relayer keypair JSON file
+# Generate with: solana-keygen new -o relayer-keypair.json
+RELAYER_KEYPAIR_PATH=./keys/relayer-keypair.json
+
+# =============================================================================
+# ARCIUM MPC CONFIGURATION
+# =============================================================================
+# Arcium provides Multi-Party Computation (MPC) for privacy-preserving bridge
+#
+# SETUP OPTIONS:
+# Option 1: Local Development (Simulation)
+#   - Set ARCIUM_SIMULATED=true (default in dev mode)
+#   - No real Arcium node needed
+#
+# Option 2: Local Arcium Node
+#   - Install: curl -sSfL https://install.arcium.com | bash
+#   - Start: arcium localnet
+#   - Set ARCIUM_ENDPOINT=http://localhost:8080
+#
+# Option 3: Arcium Devnet/Testnet
+#   - Register at https://arcium.com
+#   - Get your cluster ID and node offset
+#   - Set ARCIUM_ENDPOINT to your assigned endpoint
+# =============================================================================
+
+# [REQUIRED] Enable Arcium MPC (set to false to disable privacy features)
+ENABLE_ARCIUM_MPC=true
+
+# [REQUIRED] Arcium node endpoint
+# For Docker: http://arcium-node:8080 (auto-configured)
+# For local: http://localhost:8080
+ARCIUM_ENDPOINT=http://localhost:8080
+
+# [REQUIRED] Arcium network: devnet, testnet, or mainnet
+ARCIUM_NETWORK=devnet
+
+# [REQUIRED for production] Your Arcium cluster ID (from node registration)
+# For simulation/dev, use any value
+ARCIUM_CLUSTER_ID=devnet_default
+
+# [REQUIRED for production] Your Arcium node offset (from node registration)
+ARCIUM_NODE_OFFSET=0
+
+# Simulation mode (set to false for real MPC in production)
+# In production (NODE_ENV=production), this is always false
+ARCIUM_SIMULATED=true
+
+# Use real SDK (set to true when connecting to real Arcium network)
+ARCIUM_USE_REAL_SDK=false
+
+# Optional: Arcium API key (if required by your cluster)
+ARCIUM_API_KEY=
+
+# Performance tuning
+ARCIUM_COMPUTATION_TIMEOUT=30000
+ARCIUM_MAX_RETRIES=3
+ARCIUM_CACHE_TTL=300000
+ARCIUM_MAX_POOL_SIZE=10
+ARCIUM_PRIVACY_LEVEL=full
+
+# =============================================================================
+# BITCOIN CONFIGURATION
+# =============================================================================
+# [REQUIRED] Bitcoin network: mainnet or testnet
+BITCOIN_NETWORK=testnet
+
+# [REQUIRED] Your Bitcoin bridge address (where users send BTC)
+BITCOIN_BRIDGE_ADDRESS=tb1q_your_testnet_address
+
+# Bitcoin explorer API (auto-configured based on network if not set)
+BITCOIN_EXPLORER_URL=
+
+# [RECOMMENDED] Extended public key for HD address derivation
+# Generate unique deposit addresses per user
+BITCOIN_BRIDGE_XPUB=
+
+# Address derivation settings
+BITCOIN_DEPOSIT_DERIVATION_PATH="m/84'/1'/0'"
+BITCOIN_DEPOSIT_CHANGE_INDEX=0
+BITCOIN_DEPOSIT_TTL_MINUTES=180
+
+# Number of confirmations required (recommend 1 for testnet, 3+ for mainnet)
+BITCOIN_REQUIRED_CONFIRMATIONS=1
+
+# Enable automatic Bitcoin monitoring
+ENABLE_BITCOIN_MONITORING=true
+
+# =============================================================================
+# DATABASE CONFIGURATION (PostgreSQL)
+# =============================================================================
+# [REQUIRED] PostgreSQL connection details
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=flash_bridge
+DB_USER=postgres
+DB_PASSWORD=your_secure_password
+
+# Connection pool settings
+DB_POOL_MAX=20
+DB_POOL_MIN=2
+DB_IDLE_TIMEOUT=30000
+DB_CONNECTION_TIMEOUT=10000
+
+# =============================================================================
+# REDIS CONFIGURATION (For Distributed Rate Limiting)
+# =============================================================================
+# [RECOMMENDED] Redis enables rate limiting across multiple instances
+# Without Redis, rate limiting uses in-memory storage (single instance only)
+
+# Option 1: Redis URL (preferred)
+REDIS_URL=
+
+# Option 2: Separate host/port
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# =============================================================================
+# RELAYER CONFIGURATION
+# =============================================================================
+# Enable SOL relayer service
+ENABLE_RELAYER=true
+
+# Enable BTC relayer service
+ENABLE_BTC_RELAYER=true
+
+# =============================================================================
+# LOGGING & DEBUGGING
+# =============================================================================
+# Log level: error, warn, info, debug
+LOG_LEVEL=info
+
+# Enable debug mode (more verbose logging)
+DEBUG=false
+
+# =============================================================================
+# RESERVE MANAGEMENT
+# =============================================================================
+# Bootstrap BTC reserve (for testing)
+BOOTSTRAP_BTC=0
+
+# Bootstrap SOL reserve (for testing)
+BOOTSTRAP_SOL=0
+

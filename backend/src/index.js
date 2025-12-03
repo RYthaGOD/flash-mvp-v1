@@ -32,49 +32,79 @@ try {
   logger.warn('⚠️  Could not create logs directory', { error: error.message });
 }
 
-// Set default testnet environment variables if not configured
-process.env.ENABLE_ARCIUM_MPC = process.env.ENABLE_ARCIUM_MPC || 'true';
+// =============================================================================
+// ENVIRONMENT CONFIGURATION
+// =============================================================================
+// Supports both production (strict) and development (flexible) modes
+// Set NODE_ENV=production for strict validation
+// =============================================================================
 
-// MXE Program Mode Configuration - FIXED for real MPC operations
-// Force these settings to ensure MXE Program Mode works
-process.env.ARCIUM_SIMULATED = 'false'; // Enable real MPC operations
-process.env.ARCIUM_USE_REAL_SDK = 'false'; // Use MXE program directly (not full SDK)
-process.env.FLASH_BRIDGE_MXE_PROGRAM_ID = process.env.FLASH_BRIDGE_MXE_PROGRAM_ID || 'CULoJigMJeVrmXVYPu8D9pdmfjAZnzdAwWvTqWvz1XkP';
-process.env.SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-process.env.SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'devnet';
-// Only set mock PROGRAM_ID if not explicitly disabled
-if (process.env.PROGRAM_ID === undefined) {
-}
-process.env.DATABASE_PATH = process.env.DATABASE_PATH || './database/flash-bridge.db';
-process.env.BITCOIN_NETWORK = process.env.BITCOIN_NETWORK || 'testnet';
-process.env.BITCOIN_EXPLORER_URL = process.env.BITCOIN_EXPLORER_URL || 'https://blockstream.info/testnet/api';
-process.env.BITCOIN_BRIDGE_ADDRESS = process.env.BITCOIN_BRIDGE_ADDRESS || 'tb1qug4w70zdr40clj9qecy67tx58e24lk90whzy9l';
-process.env.ZCASH_NETWORK = process.env.ZCASH_NETWORK || 'testnet';
-process.env.ZCASH_EXPLORER_URL = process.env.ZCASH_EXPLORER_URL || 'https://lightwalletd.testnet.z.cash';
-process.env.ZCASH_BRIDGE_ADDRESS = process.env.ZCASH_BRIDGE_ADDRESS || 'zs1mockzcashaddress1234567890';
-process.env.ENABLE_RELAYER = process.env.ENABLE_RELAYER || 'false';
-process.env.ENABLE_BTC_RELAYER = process.env.ENABLE_BTC_RELAYER || 'false';
+const isProduction = process.env.NODE_ENV === 'production';
+const isDevnet = (process.env.SOLANA_NETWORK || 'devnet').toLowerCase() === 'devnet';
+
+// Set sensible defaults
 process.env.PORT = process.env.PORT || '3001';
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN;
-const REQUIRED_ENVS = [
-  'FRONTEND_ORIGIN',
+process.env.SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'devnet';
+process.env.SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+process.env.BITCOIN_NETWORK = process.env.BITCOIN_NETWORK || 'testnet';
+
+// Bitcoin explorer - configure based on network
+if (!process.env.BITCOIN_EXPLORER_URL) {
+  process.env.BITCOIN_EXPLORER_URL = process.env.BITCOIN_NETWORK === 'mainnet' 
+    ? 'https://blockstream.info/api' 
+    : 'https://blockstream.info/testnet/api';
+}
+
+// Arcium configuration - allow simulation for devnet
+if (isProduction) {
+  process.env.ENABLE_ARCIUM_MPC = 'true';
+  process.env.ARCIUM_SIMULATED = 'false';
+  process.env.ARCIUM_USE_REAL_SDK = 'true';
+} else {
+  // Development/devnet - allow simulation
+  process.env.ENABLE_ARCIUM_MPC = process.env.ENABLE_ARCIUM_MPC || 'true';
+  process.env.ARCIUM_SIMULATED = process.env.ARCIUM_SIMULATED || 'true';
+  process.env.ARCIUM_USE_REAL_SDK = process.env.ARCIUM_USE_REAL_SDK || 'false';
+}
+
+// Validate environment variables
+const CRITICAL_ENV_VARS = isProduction ? [
+  'FLASH_BRIDGE_MXE_PROGRAM_ID',
+  'SOLANA_RPC_URL',
   'BITCOIN_BRIDGE_ADDRESS',
+  'ADMIN_API_KEY',
+  'FRONTEND_ORIGIN',
+  'DB_HOST',
+  'DB_PASSWORD',
+] : [
+  // Minimum for devnet testing
+  'FRONTEND_ORIGIN',
   'ADMIN_API_KEY',
 ];
 
-const missingRequired = REQUIRED_ENVS.filter(
-  (key) => !process.env[key] || process.env[key].trim() === ''
-);
+const missingCritical = CRITICAL_ENV_VARS.filter(key => !process.env[key]);
+if (missingCritical.length > 0) {
+  console.error('');
+  console.error('═'.repeat(60));
+  console.error('❌ Missing required environment variables:');
+  console.error('═'.repeat(60));
+  missingCritical.forEach(key => console.error(`   - ${key}`));
+  console.error('');
+  console.error('To fix:');
+  console.error('1. Copy backend/env-template.txt to backend/.env');
+  console.error('2. Fill in the required values');
+  console.error('3. Run: npm run preflight (to validate)');
+  console.error('═'.repeat(60));
+  process.exit(1);
+}
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
 
-if (missingRequired.length > 0) {
-  logger.error('❌ Missing required environment variables', { missingRequired });
-  logger.error(
-    'Set these in backend/.env before starting the server. See README: Environment Configuration.'
-  );
-  throw new Error(
-    `Missing required environment variables: ${missingRequired.join(', ')}`
-  );
+// Log current mode
+logger.info(`Mode: ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
+logger.info(`Network: ${process.env.SOLANA_NETWORK}`);
+if (!isProduction) {
+  logger.info('Arcium: Simulation enabled (set NODE_ENV=production for real MPC)');
 }
 
 // =============================================================================
@@ -238,6 +268,9 @@ async function gracefulShutdown(signal) {
 const bridgeRoutes = require('./routes/bridge');
 const zcashRoutes = require('./routes/zcash');
 const arciumRoutes = require('./routes/arcium');
+const v1Routes = require('./routes/v1');
+const apiDocsRoutes = require('./routes/api-docs');
+const { initializeRedis } = require('./middleware/redisRateLimit');
 const solanaService = require('./services/solana');
 const relayerService = require('./services/relayer');
 const zcashService = require('./services/zcash');
@@ -293,23 +326,24 @@ app.use((req, res, next) => {
 // Routes
 app.get('/', (req, res) => {
   res.json({
-    message: 'FLASH — BTC → ZEC (shielded) → Solana Bridge',
-    description: 'Backend API for native ZEC minting and SOL swap relayer',
+    message: 'FLASH — BTC → SOL Bridge',
+    description: 'Production Bridge API with Arcium MPC',
     version: '1.0.0',
     status: 'running',
+    apiVersions: {
+      current: '/api/v1',
+      legacy: '/api (deprecated)',
+    },
     endpoints: {
-      bridge: '/api/bridge',
-      zcash: '/api/zcash',
-      arcium: '/api/arcium',
+      bridge: '/api/v1/bridge',
+      arcium: '/api/v1/arcium',
+      docs: '/api/v1/docs',
       health: '/health',
-      bridgeInfo: '/api/bridge/info',
-      zcashInfo: '/api/zcash/info',
-      arciumStatus: '/api/arcium/status',
     },
     features: {
       privacy: 'ALWAYS ON - Full MPC encryption via Arcium',
       confidential: 'All transactions encrypted (mandatory)',
-      mode: 'Complete Privacy',
+      mode: 'PRODUCTION',
     },
   });
 });
@@ -352,9 +386,31 @@ app.get('/health', async (req, res) => {
   res.json(health);
 });
 
+// API Version 1 (Current)
+app.use('/api/v1', v1Routes);
+app.use('/api/v1/docs', apiDocsRoutes);
+
+// Legacy routes (deprecated - point to v1)
 app.use('/api/bridge', bridgeRoutes);
 app.use('/api/zcash', zcashRoutes);
 app.use('/api/arcium', arciumRoutes);
+
+// Deprecation warning for legacy routes
+app.use('/api/bridge', (req, res, next) => {
+  res.set('Deprecation', 'true');
+  res.set('Link', '</api/v1/bridge>; rel="successor-version"');
+  next();
+});
+app.use('/api/zcash', (req, res, next) => {
+  res.set('Deprecation', 'true');
+  res.set('Link', '</api/v1/zcash>; rel="successor-version"');
+  next();
+});
+app.use('/api/arcium', (req, res, next) => {
+  res.set('Deprecation', 'true');
+  res.set('Link', '</api/v1/arcium>; rel="successor-version"');
+  next();
+});
 
 // 404 handler (must be before error handler)
 app.use(notFoundHandler);
@@ -365,7 +421,22 @@ app.use(errorHandler);
 // Start server
 app.listen(PORT, async () => {
   logger.info('='.repeat(60));
-  logger.info('FLASH — BTC → USDC Treasury → Token Bridge (MVP)');
+  logger.info('FLASH — BTC → SOL Bridge (PRODUCTION)');
+  logger.info('='.repeat(60));
+  
+  // Initialize Redis for distributed rate limiting
+  logger.info('Initializing Redis for rate limiting...');
+  try {
+    const redisConnected = await initializeRedis();
+    if (redisConnected) {
+      logger.info('✅ Redis: Connected (distributed rate limiting enabled)');
+    } else {
+      logger.warn('⚠️  Redis: Not available (using in-memory rate limiting)');
+      logger.warn('   Set REDIS_URL in .env for production scaling');
+    }
+  } catch (error) {
+    logger.warn('Redis initialization failed:', error.message);
+  }
   logger.info('='.repeat(60));
   
   // Validate configuration

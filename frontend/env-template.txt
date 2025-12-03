@@ -1,0 +1,19 @@
+# =============================================================================
+# FLASH Bridge Frontend - Environment Configuration
+# =============================================================================
+# Copy this file to .env and fill in your values:
+#   cp env-template.txt .env
+# =============================================================================
+
+# [REQUIRED] Backend API URL
+REACT_APP_API_URL=http://localhost:3001
+
+# [REQUIRED] Solana network: devnet, testnet, or mainnet-beta
+REACT_APP_SOLANA_NETWORK=devnet
+
+# Optional: Custom Solana RPC URL (uses default cluster URL if not set)
+REACT_APP_SOLANA_RPC_URL=
+
+# Optional: Client API key (must match backend CLIENT_API_KEY if set)
+REACT_APP_CLIENT_ID=
+

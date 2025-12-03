@@ -1,5 +1,5 @@
 
-const axios = require('axios');
+const axios = require('./axiosClient');
 
 class FlashBridgeDemo {
   constructor() {

@@ -90,6 +90,37 @@ pub fn encrypt_btc_address(
 
 ## 🚀 **Building & Testing**
 
+### 🐧 WSL Quickstart
+You can build and deploy the MXE entirely from Windows Subsystem for Linux (Ubuntu). Run the helper script once inside WSL to install every dependency:
+
+```bash
+# From the repo root (mounted under /mnt/c/Users/...)
+chmod +x arcium-node-setup/setup-wsl.sh
+./arcium-node-setup/setup-wsl.sh
+
+# Reload shell paths for the current session
+source ~/.cargo/env
+export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+```
+
+After the bootstrap script finishes:
+
+1. Verify toolchain versions
+   ```bash
+   rustc --version
+   cargo --version
+   anchor --version
+   solana --version
+   ```
+2. Set your Solana config inside WSL (matches Windows config but is independent):
+   ```bash
+   solana config set --url https://api.devnet.solana.com
+   solana config set --keypair /home/<you>/keys/flash-bridge-upgrade.json
+   ```
+3. Work from the repo mounted at `/mnt/c/Users/craig/OneDrive/Documents/flash-mvp-main`.
+
+> **Tip:** If you already have the toolchain installed on Windows, keep using the same keypair files by pointing to `/mnt/c/Users/.../upgrade-keypair.json` from WSL. Solana/Anchor read them just fine.
+
 ### Prerequisites
 ```bash
 # Install Arcium CLI (when available)
@@ -139,6 +170,30 @@ arcium deploy --network devnet
 # Initialize computation definitions
 # (Scripts would be provided by Arcium)
 ```
+
+### WSL Deployment Checklist
+Use these commands from within your WSL session to rebuild and redeploy the program after making source changes:
+
+```bash
+# 1. Ensure you are in the MXE directory
+cd /mnt/c/Users/craig/OneDrive/Documents/flash-mvp-main/flash-mvp-copilot-merge-all-branches-for-demo/flash-bridge-mxe
+
+# 2. Build the updated binary
+anchor build
+
+# 3. Fund your upgrade authority (devnet example)
+solana balance
+solana airdrop 2
+
+# 4. Deploy/upgrade the program
+anchor deploy --provider.cluster devnet
+# or: solana program deploy target/deploy/flash_bridge_mxe.so --program-id target/deploy/flash_bridge_mxe-keypair.json
+
+# 5. Distribute the new IDL to downstream services
+cp target/idl/flash_bridge_mxe.json <wherever your backend expects it>
+```
+
+All build artifacts land under the WSL path above and are immediately accessible from Windows because both environments share the same working tree.
 
 ### Production Deployment
 ```bash

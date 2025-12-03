@@ -1,0 +1,55 @@
+# =============================================================================
+# FLASH Bridge - Arcium MPC Node Override
+# =============================================================================
+# Use this file to run with a real Arcium node instead of the placeholder.
+#
+# USAGE:
+#   docker-compose -f docker-compose.yml -f docker-compose.arcium.yml up -d
+#
+# PREREQUISITES:
+# 1. Install Arcium tooling: curl -sSfL https://install.arcium.com | bash
+# 2. Start local network: arcium localnet
+#    OR connect to Arcium devnet/testnet
+# 3. Configure your node credentials in backend/.env
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # Real Arcium Node (Replaces placeholder)
+  # ===========================================================================
+  # Option 1: Use host machine's Arcium node (recommended for development)
+  arcium-node:
+    image: alpine:latest
+    container_name: flash-arcium-real
+    restart: unless-stopped
+    network_mode: host
+    # Connect to Arcium node running on host machine
+    # The backend will connect via ARCIUM_ENDPOINT environment variable
+    command: >
+      sh -c "
+        echo '🔒 Connecting to host Arcium node...';
+        echo '   Ensure arcium localnet is running on host';
+        sleep infinity
+      "
+    healthcheck:
+      # Check if host Arcium node is accessible
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Update backend to connect to host's Arcium node
+  backend:
+    environment:
+      # Connect to host machine's Arcium node
+      ARCIUM_ENDPOINT: http://host.docker.internal:8080
+      # For Linux, use: http://172.17.0.1:8080
+      ENABLE_ARCIUM_MPC: "true"
+      ARCIUM_SIMULATED: "false"
+      ARCIUM_USE_REAL_SDK: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+

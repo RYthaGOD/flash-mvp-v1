@@ -12,6 +12,8 @@
 # ============================================================================
 # Backend API URL
 REACT_APP_API_URL=http://localhost:3001
+# Optional client signature header (matches backend CLIENT_API_KEY)
+REACT_APP_CLIENT_ID=
 
 # ============================================================================
 # SOLANA CONFIGURATION
@@ -26,21 +28,6 @@ REACT_APP_FLASH_BRIDGE_MXE_PROGRAM_ID=YOUR_FLASH_BRIDGE_MXE_PROGRAM_ID_HERE
 # ============================================================================
 # TOKEN CONFIGURATION
 # ============================================================================
-# Native ZEC mint address (should match backend NATIVE_ZEC_MINT)
-REACT_APP_NATIVE_ZEC_MINT=A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS
-
-# Custom zenZEC mint (only if not using native ZEC)
-# REACT_APP_ZENZEC_MINT=YourZenZECMintAddressHere
-
-# ============================================================================
-# EXCHANGE RATES (for display)
-# ============================================================================
-# These rates are for UI display only
-# Actual rates are determined by backend/exchange APIs
-REACT_APP_SOL_TO_ZENZEC_RATE=100
-REACT_APP_ZENZEC_TO_BTC_RATE=0.0001
-REACT_APP_ZEC_TO_BTC_RATE=0.0001
-
 # ============================================================================
 # ARCIUM CONFIGURATION
 # ============================================================================

@@ -18,7 +18,8 @@ npm start
 PORT=3001
 SOLANA_RPC_URL=https://api.devnet.solana.com
 SOLANA_NETWORK=devnet
-PROGRAM_ID=Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS
+PROGRAM_ID=CULoJigMJeVrmXVYPu8D9pdmfjAZnzdAwWvTqWvz1XkP     # Anchor program handling bridge + MXE events
+FLASH_BRIDGE_MXE_PROGRAM_ID=CULoJigMJeVrmXVYPu8D9pdmfjAZnzdAwWvTqWvz1XkP   # Required by MXE-aware services
 ZENZEC_MINT=YourZenZECMintAddressHere  # For custom zenZEC token (optional)
 
 # Native ZEC Configuration (Recommended)

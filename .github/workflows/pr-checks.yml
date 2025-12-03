@@ -1,0 +1,123 @@
+# =============================================================================
+# Pull Request Checks
+# =============================================================================
+# Runs on every PR to ensure code quality before merge
+# =============================================================================
+
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # ===========================================================================
+  # PR Info
+  # ===========================================================================
+  pr-info:
+    name: PR Information
+    runs-on: ubuntu-latest
+    steps:
+      - name: PR Details
+        run: |
+          echo "📋 PR #${{ github.event.pull_request.number }}"
+          echo "📝 Title: ${{ github.event.pull_request.title }}"
+          echo "🔀 From: ${{ github.event.pull_request.head.ref }}"
+          echo "🎯 To: ${{ github.event.pull_request.base.ref }}"
+
+  # ===========================================================================
+  # Quick Checks
+  # ===========================================================================
+  quick-checks:
+    name: Quick Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for sensitive files
+        run: |
+          echo "🔍 Checking for sensitive files..."
+          
+          # Check for keypair files
+          if find . -name "*keypair*.json" -not -path "./node_modules/*" | grep -q .; then
+            echo "❌ ERROR: Keypair files found!"
+            find . -name "*keypair*.json" -not -path "./node_modules/*"
+            exit 1
+          fi
+          
+          # Check for .env files (except examples)
+          if find . -name ".env" -not -name ".env.example" -not -path "./node_modules/*" | grep -q .; then
+            echo "❌ ERROR: .env files found!"
+            exit 1
+          fi
+          
+          echo "✅ No sensitive files detected"
+
+      - name: Check commit messages
+        run: |
+          echo "📝 Checking commit messages..."
+          # Add commit message linting if needed
+
+  # ===========================================================================
+  # Size Check
+  # ===========================================================================
+  size-check:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build and check size
+        working-directory: frontend
+        run: |
+          npm run build
+          
+          # Check bundle size
+          BUNDLE_SIZE=$(du -sb build | cut -f1)
+          MAX_SIZE=5000000  # 5MB limit
+          
+          echo "📦 Bundle size: $(echo "scale=2; $BUNDLE_SIZE / 1000000" | bc) MB"
+          
+          if [ $BUNDLE_SIZE -gt $MAX_SIZE ]; then
+            echo "⚠️ Warning: Bundle size exceeds 5MB"
+          else
+            echo "✅ Bundle size is within limits"
+          fi
+
+  # ===========================================================================
+  # Dependency Check
+  # ===========================================================================
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for outdated dependencies
+        run: |
+          echo "📦 Checking dependencies..."
+          cd backend && npm outdated || true
+          cd ../frontend && npm outdated || true
+
+      - name: Check for duplicate dependencies
+        run: |
+          echo "🔍 Checking for duplicates..."
+          cd backend && npm dedupe --dry-run || true
+          cd ../frontend && npm dedupe --dry-run || true
+

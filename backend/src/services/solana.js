@@ -118,24 +118,60 @@ class SolanaService {
   }
 
   async loadRelayerKeypair() {
-    try {
-      const deps = getSolanaDeps();
-      const keypairPath = process.env.RELAYER_KEYPAIR_PATH || path.join(__dirname, '..', '..', 'backend', 'relayer-keypair-new.json');
-      const fsPromises = require('fs').promises;
-
+    const isProduction = process.env.NODE_ENV === 'production';
+    const keypairPath = process.env.RELAYER_KEYPAIR_PATH;
+    
+    // Try to load from configured path
+    if (keypairPath) {
       try {
+        const deps = getSolanaDeps();
+        const fsPromises = require('fs').promises;
+
         await fsPromises.access(keypairPath);
         const keypairData = await fsPromises.readFile(keypairPath, 'utf8');
         const keypairJson = JSON.parse(keypairData);
-        return deps.Keypair.fromSecretKey(Uint8Array.from(keypairJson));
-      } catch (fileError) {
-        // File doesn't exist or can't be read
-        return null;
+        const keypair = deps.Keypair.fromSecretKey(Uint8Array.from(keypairJson));
+        
+        console.log(`✅ Relayer keypair loaded: ${keypair.publicKey.toBase58().substring(0, 10)}...`);
+        return keypair;
+      } catch (error) {
+        if (isProduction) {
+          throw new Error(`Failed to load relayer keypair from ${keypairPath}: ${error.message}`);
+        }
+        console.warn(`⚠️  Could not load keypair from ${keypairPath}: ${error.message}`);
       }
-    } catch (error) {
-      console.warn('Relayer keypair not loaded:', error.message);
     }
-    return null;
+    
+    // In development, try common locations
+    if (!isProduction) {
+      const commonPaths = [
+        './keys/relayer-keypair.json',
+        './relayer-keypair.json',
+        path.join(__dirname, '..', '..', 'keys', 'relayer-keypair.json'),
+      ];
+      
+      const fsPromises = require('fs').promises;
+      const deps = getSolanaDeps();
+      
+      for (const tryPath of commonPaths) {
+        try {
+          await fsPromises.access(tryPath);
+          const keypairData = await fsPromises.readFile(tryPath, 'utf8');
+          const keypairJson = JSON.parse(keypairData);
+          const keypair = deps.Keypair.fromSecretKey(Uint8Array.from(keypairJson));
+          console.log(`✅ Relayer keypair found at: ${tryPath}`);
+          return keypair;
+        } catch {
+          // Try next path
+        }
+      }
+      
+      console.warn('⚠️  No relayer keypair found - SOL transfers disabled');
+      console.warn('   Generate one with: solana-keygen new -o keys/relayer-keypair.json');
+      return null;
+    }
+    
+    throw new Error('RELAYER_KEYPAIR_PATH is required in production');
   }
 
   getConnection() {

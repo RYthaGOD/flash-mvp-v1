@@ -1,5 +1,5 @@
 
-const axios = require('axios');
+const axios = require('./axiosClient');
 
 async function demonstrateStatusTransitions(txId) {
   const baseUrl = 'http://localhost:3002';

@@ -1,0 +1,14 @@
+[node]
+offset = 912345678
+hardware_claim = 0
+starting_epoch = 0
+ending_epoch = 9223372036854775807
+
+[network]
+address = "0.0.0.0"
+
+[solana]
+endpoint_rpc = "https://api.devnet.solana.com"
+endpoint_wss = "wss://api.devnet.solana.com"
+cluster = "Devnet"
+commitment = { commitment = "finalized" }

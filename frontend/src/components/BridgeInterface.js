@@ -9,7 +9,6 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 function BridgeInterface() {
   const { publicKey, connected } = useWallet();
   const [amount, setAmount] = useState('');
-  const [swapToSol, setSwapToSol] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -58,7 +57,6 @@ function BridgeInterface() {
       const response = await axios.post(`${API_URL}/api/bridge`, {
         solanaAddress: publicKey.toString(),
         amount: parseFloat(amount),
-        swapToSol: swapToSol,
       });
 
       setResult(response.data);
@@ -66,7 +64,7 @@ function BridgeInterface() {
       // Update workflow step based on response
       if (response.data.solanaTxSignature) {
         setWorkflowStep('minting');
-        setStatusMessage('Transferring native ZEC tokens on Solana...');
+        setStatusMessage('Transferring SOL from treasury...');
         
         // Wait a bit then check status
         setTimeout(() => {
@@ -91,10 +89,10 @@ function BridgeInterface() {
 
   const getWorkflowSteps = () => {
     const isRequesting = workflowStep === 'initiating' || workflowStep === 'processing';
-    const isMinting = workflowStep === 'minting';
+    const isTransferring = workflowStep === 'minting';
     const isCompleted = workflowStep === 'completed';
     
-    const steps = [
+    return [
       { 
         id: 1, 
         name: 'Connect Wallet', 
@@ -102,33 +100,32 @@ function BridgeInterface() {
       },
       { 
         id: 2, 
-        name: 'Enter Amount', 
+        name: 'Enter BTC Amount', 
         status: amount && parseFloat(amount) > 0 ? 'completed' : 'pending' 
       },
       { 
         id: 3, 
-        name: 'Bridge Request', 
-        status: isRequesting ? 'active' : isCompleted || isMinting ? 'completed' : 'pending' 
+        name: 'Submit Bridge Request', 
+        status: isRequesting ? 'active' : isCompleted || isTransferring ? 'completed' : 'pending' 
       },
       { 
         id: 4, 
-        name: 'Transfer native ZEC', 
-        status: isMinting ? 'active' : isCompleted ? 'completed' : 'pending' 
+        name: 'Treasury SOL Transfer', 
+        status: isTransferring ? 'active' : isCompleted ? 'completed' : 'pending' 
       },
       { 
         id: 5, 
-        name: swapToSol ? 'Swap to SOL' : 'Hold native ZEC', 
-        status: isCompleted && swapToSol ? 'pending' : isCompleted ? 'completed' : 'pending' 
+        name: 'Proof & Audit Trail', 
+        status: isCompleted ? 'completed' : 'pending' 
       },
     ];
-    return steps;
   };
 
   return (
     <div className="bridge-container">
       <div className="bridge-card">
         <h1 className="bridge-title">FLASH Bridge</h1>
-        <p className="bridge-subtitle">BTC → ZEC (shielded) → Solana</p>
+        <p className="bridge-subtitle">BTC Deposits → SOL Treasury Payouts</p>
 
         {/* Bridge Info */}
         {bridgeInfo && (
@@ -174,7 +171,7 @@ function BridgeInterface() {
 
             <form onSubmit={handleBridge} className="bridge-form">
               <div className="form-group">
-                <label htmlFor="amount">Amount (zenZEC)</label>
+                <label htmlFor="amount">Requested Amount (BTC)</label>
                 <input
                   id="amount"
                   type="number"
@@ -186,22 +183,8 @@ function BridgeInterface() {
                   disabled={loading}
                   required
                 />
-              </div>
-
-              <div className="form-group checkbox-group">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={swapToSol}
-                    onChange={(e) => setSwapToSol(e.target.checked)}
-                    disabled={loading}
-                  />
-                  <span>Swap to SOL after minting</span>
-                </label>
                 <p className="helper-text">
-                  {swapToSol 
-                    ? 'zenZEC will be burned and SOL sent to your wallet via relayer'
-                    : 'zenZEC tokens will be minted to your wallet'}
+                  Provide the BTC amount you sent to the bridge address. The backend converts it to SOL.
                 </p>
               </div>
 
@@ -236,8 +219,12 @@ function BridgeInterface() {
                     <span className="detail-value">{result.transactionId}</span>
                   </div>
                   <div className="detail-row">
-                    <span className="detail-label">Amount:</span>
-                    <span className="detail-value">{(result.amount / 100000000).toFixed(6)} zenZEC</span>
+                    <span className="detail-label">Payout Amount:</span>
+                    <span className="detail-value">
+                      {typeof result.amount === 'number'
+                        ? `${result.amount.toFixed(6)} SOL`
+                        : '—'}
+                    </span>
                   </div>
                   <div className="detail-row">
                     <span className="detail-label">Status:</span>
@@ -263,12 +250,6 @@ function BridgeInterface() {
                       <span className="detail-value">Demo (No TX verification)</span>
                     </div>
                   )}
-                  {result.swapToSol && (
-                    <div className="detail-row">
-                      <span className="detail-label">Next Step:</span>
-                      <span className="detail-value">Call burn_and_emit to swap to SOL</span>
-                    </div>
-                  )}
                 </div>
                 <p className="helper-text">{result.message}</p>
               </div>
@@ -281,9 +262,9 @@ function BridgeInterface() {
             <p>Connect your Solana wallet to start bridging</p>
             <ul className="feature-list">
               <li>✓ Mock BTC payment via Cash App/Lightning</li>
-              <li>✓ Shield BTC into ZEC (conceptual)</li>
-              <li>✓ Transfer native ZEC tokens on Solana</li>
-              <li>✓ Optional: Burn zenZEC to receive SOL</li>
+              <li>✓ Monitor BTC deposit readiness</li>
+              <li>✓ Release SOL from the treasury wallet</li>
+              <li>✓ Download proofs for compliance reviews</li>
             </ul>
           </div>
         )}

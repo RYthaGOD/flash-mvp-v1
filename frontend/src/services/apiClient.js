@@ -1,7 +1,12 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const CLIENT_ID = (process.env.REACT_APP_CLIENT_ID || '').trim();
 
+/**
+ * FLASH Bridge API Client
+ * Handles all communication with the backend API
+ */
 class APIClient {
   constructor() {
     this.client = axios.create({
@@ -9,6 +14,7 @@ class APIClient {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
+        ...(CLIENT_ID ? { 'x-client-id': CLIENT_ID } : {}),
       },
     });
 
@@ -41,15 +47,26 @@ class APIClient {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
   // Health & System
+  // ═══════════════════════════════════════════════════════════════════════════
+  
   async getHealth() {
     const response = await this.client.get('/health');
     return response.data;
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
   // Bridge Operations
+  // ═══════════════════════════════════════════════════════════════════════════
+  
   async getBridgeInfo() {
     const response = await this.client.get('/api/bridge/info');
+    return response.data;
+  }
+
+  async getBridgeHealth() {
+    const response = await this.client.get('/api/bridge/health');
     return response.data;
   }
 
@@ -58,6 +75,10 @@ class APIClient {
     return response.data;
   }
 
+  /**
+   * Submit a bridge transaction (BTC → SOL)
+   * @param {Object} data - { solanaAddress, amount, bitcoinTxHash?, depositAllocationId? }
+   */
   async bridgeTransaction(data) {
     const response = await this.client.post('/api/bridge', data);
     return response.data;
@@ -68,12 +89,96 @@ class APIClient {
     return response.data;
   }
 
+  async updateTransactionStatus(txId, status, notes) {
+    const response = await this.client.patch(`/api/bridge/transaction/${txId}/status`, {
+      status,
+      notes,
+    });
+    return response.data;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BTC Deposit Management
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Allocate a unique BTC deposit address for a Solana wallet
+   * @param {Object} data - { solanaAddress, sessionId?, clientLabel?, forceNew?, metadata? }
+   */
+  async allocateBTCAddress(data) {
+    const response = await this.client.post('/api/bridge/btc-address', data);
+    return response.data;
+  }
+
+  /**
+   * Check all BTC deposits and their status
+   */
+  async checkBTCDeposits() {
+    const response = await this.client.get('/api/bridge/check-btc-deposits');
+    return response.data;
+  }
+
+  /**
+   * Get status of a specific BTC deposit
+   * @param {string} txHash - Bitcoin transaction hash
+   */
+  async getBTCDepositStatus(txHash) {
+    const response = await this.client.get(`/api/bridge/btc-deposit/${txHash}`);
+    return response.data;
+  }
+
+  /**
+   * Claim a BTC deposit after monitoring detects it
+   * @param {Object} data - { solanaAddress, bitcoinTxHash, outputTokenMint? }
+   */
+  async claimBTCDeposit(data) {
+    const response = await this.client.post('/api/bridge/btc-deposit', data);
+    return response.data;
+  }
+
+  /**
+   * Get BTC monitor status
+   */
+  async getBTCMonitorStatus() {
+    const response = await this.client.get('/api/bridge/btc-monitor/status');
+    return response.data;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Proof & Compliance
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get cryptographic proof for a transaction
+   * @param {string} txId - Transaction ID
+   * @param {string} format - 'full' | 'audit' | 'verification'
+   */
+  async getTransactionProof(txId, format = 'full') {
+    const response = await this.client.get(`/api/bridge/proof/${txId}`, {
+      params: { format },
+    });
+    return response.data;
+  }
+
+  /**
+   * Verify a cryptographic proof
+   * @param {string} txId - Transaction ID
+   * @param {Object} proof - Proof data to verify
+   */
+  async verifyTransactionProof(txId, proof) {
+    const response = await this.client.post(`/api/bridge/proof/${txId}/verify`, { proof });
+    return response.data;
+  }
+
   async markRedemption(data) {
     const response = await this.client.post('/api/bridge/mark-redemption', data);
     return response.data;
   }
 
-  // Arcium Operations
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Arcium MPC Operations
+  // ═══════════════════════════════════════════════════════════════════════════
+  
   async getArciumStatus() {
     const response = await this.client.get('/api/arcium/status');
     return response.data;
@@ -89,7 +194,20 @@ class APIClient {
     return response.data;
   }
 
-  // Zcash Operations
+  async encryptAmount(data) {
+    const response = await this.client.post('/api/arcium/encrypt-amount', data);
+    return response.data;
+  }
+
+  async privateBridge(data) {
+    const response = await this.client.post('/api/arcium/bridge/private', data);
+    return response.data;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Zcash Operations (Legacy - Disabled)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
   async getZECPrice() {
     const response = await this.client.get('/api/zcash/price');
     return response.data;
@@ -97,6 +215,11 @@ class APIClient {
 
   async validateZcashAddress(address) {
     const response = await this.client.post('/api/zcash/validate-address', { address });
+    return response.data;
+  }
+
+  async getZcashInfo() {
+    const response = await this.client.get('/api/zcash/info');
     return response.data;
   }
 }

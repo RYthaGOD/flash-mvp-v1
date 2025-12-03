@@ -1,6 +1,6 @@
 // Quick script to verify backend setup and readiness
 require('dotenv').config();
-const axios = require('axios');
+const axios = require('./axiosClient');
 
 const API_URL = 'http://localhost:3001';
 
