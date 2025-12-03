@@ -1,6 +1,11 @@
 /**
  * BTC Deposit Handler
  * Handles BTC deposits → USDC Treasury → Jupiter Swap → User Token
+ * 
+ * Revenue Integration:
+ * - Fee calculation at deposit time
+ * - Fee deduction before user payout
+ * - Fee recording for analytics
  */
 
 const { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } = require('@solana/web3.js');
@@ -8,6 +13,7 @@ const jupiterService = require('./jupiter');
 const bitcoinService = require('./bitcoin');
 const databaseService = require('./database');
 const solanaService = require('./solana');
+const feeService = require('./fee-service');
 const { createLogger } = require('../utils/logger');
 
 // USDC mint addresses
@@ -35,9 +41,14 @@ class BTCDepositHandler {
    * @param {Object} payment - BTC payment object from monitoring
    * @param {string} userSolanaAddress - User's Solana address
    * @param {string} outputTokenMint - Token mint address user wants to receive (optional, defaults to USDC)
-   * @returns {Promise<Object>} Swap result
+   * @param {Object} options - Additional options
+   * @param {string} options.tier - Service tier: 'basic', 'fast', 'private', 'premium'
+   * @param {boolean} options.usePrivacy - Whether to use Arcium MPC encryption
+   * @param {string} options.referralCode - Referral code for discounts
+   * @returns {Promise<Object>} Swap result with fee breakdown
    */
-  async handleBTCDeposit(payment, userSolanaAddress, outputTokenMint = null) {
+  async handleBTCDeposit(payment, userSolanaAddress, outputTokenMint = null, options = {}) {
+    const { tier = 'basic', usePrivacy = false, referralCode = null } = options;
     // Validate inputs
     if (!payment || !payment.txHash) {
       throw new Error('Invalid payment object: missing txHash');
@@ -131,15 +142,35 @@ class BTCDepositHandler {
         // For demo: 1 BTC = ~$X USD, use current price or fixed rate
         const btcAmount = payment.amount / 100000000; // Convert satoshis to BTC
         const btcToUsdcRate = parseFloat(process.env.BTC_TO_USDC_RATE || '50000'); // Default: 1 BTC = 50k USDC
-        const usdcAmount = btcAmount * btcToUsdcRate;
+        const grossUsdcAmount = btcAmount * btcToUsdcRate;
 
+        // =================================================================
+        // FEE CALCULATION - Revenue Generation
+        // =================================================================
+        const feeCalculation = feeService.calculateFees({
+          amountUSD: grossUsdcAmount,
+          amountBTC: btcAmount,
+          tier,
+          usePrivacy,
+          referralCode,
+        });
+
+        const feeUSD = feeCalculation.totalFeeUSD;
+        const usdcAmount = feeCalculation.userReceivesUSD; // Amount after fees
+        
         logger.info(`💰 Processing BTC deposit:`);
         logger.info(`   BTC Amount: ${btcAmount} BTC`);
-        logger.info(`   USDC Equivalent: ${usdcAmount} USDC`);
+        logger.info(`   Gross USD Value: $${grossUsdcAmount.toFixed(2)}`);
+        logger.info(`   Fee (${feeCalculation.tierName}): $${feeUSD.toFixed(2)} (${feeCalculation.feePercentEffective}%)`);
+        logger.info(`   User Receives: $${usdcAmount.toFixed(2)}`);
         logger.info(`   User Address: ${userSolanaAddress}`);
         logger.info(`   Output Token: ${outputTokenMint || 'USDC (default)'}`);
         logger.info(`   BTC TX: ${payment.txHash}`);
         logger.info(`   Rate: 1 BTC = ${btcToUsdcRate} USDC`);
+        logger.info(`   Tier: ${feeCalculation.tierName}`);
+        if (referralCode) {
+          logger.info(`   Referral: ${referralCode} (discount: $${feeCalculation.breakdown.referralDiscount})`);
+        }
 
         // TEST MODE: If BTC_TEST_MODE=true, just send SOL directly (no swap)
         const testMode = process.env.BTC_TEST_MODE === 'true';
@@ -244,8 +275,9 @@ class BTCDepositHandler {
             }, client);
 
             // Also save to bridge_transactions table for transaction history
+            const txId = `btc_deposit_${payment.txHash.substring(0, 16)}`;
             await databaseService.saveBridgeTransaction({
-              txId: `btc_deposit_${payment.txHash.substring(0, 16)}`,
+              txId,
               solanaAddress: userSolanaAddress,
               amount: usdcAmount,
               reserveAsset: 'BTC',
@@ -256,6 +288,50 @@ class BTCDepositHandler {
               demoMode: false,
               outputToken: (outputMint || this.getUSDCMint()).toBase58(),
             });
+
+            // =================================================================
+            // RECORD FEE COLLECTION - Revenue Tracking
+            // =================================================================
+            try {
+              await client.query(`
+                INSERT INTO fee_collections (
+                  transaction_id, transaction_type, fee_usd, fee_btc,
+                  base_fee_usd, privacy_fee_usd, referral_discount_usd,
+                  amount_usd, amount_btc, fee_percent_effective,
+                  tier, features, user_address, referral_code,
+                  collection_tx_signature, status
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+              `, [
+                txId,
+                'bridge',
+                feeCalculation.totalFeeUSD,
+                feeCalculation.feeBTC,
+                feeCalculation.breakdown.baseFee,
+                feeCalculation.breakdown.privacyFee,
+                feeCalculation.breakdown.referralDiscount,
+                grossUsdcAmount,
+                btcAmount,
+                feeCalculation.feePercentEffective,
+                tier,
+                feeCalculation.features,
+                userSolanaAddress,
+                referralCode,
+                swapResult.signature,
+                'collected'
+              ]);
+              
+              // Record fee in memory stats
+              feeService.recordFee({
+                tier,
+                totalFeeUSD: feeCalculation.totalFeeUSD,
+                txId,
+              });
+              
+              logger.info(`💰 Fee recorded: $${feeCalculation.totalFeeUSD.toFixed(2)}`);
+            } catch (feeError) {
+              logger.error('Error recording fee (non-critical):', feeError.message);
+              // Don't fail transaction - fee recording is not critical
+            }
 
             // Commit transaction
             await client.query('COMMIT');
@@ -296,24 +372,33 @@ class BTCDepositHandler {
 
         logger.info(`✅ BTC deposit processed successfully`);
         logger.info(`   Transaction: ${swapResult.signature}`);
+        logger.info(`   Fee collected: $${feeCalculation.totalFeeUSD.toFixed(2)}`);
         
         if (testMode) {
           const btcToSolRate = parseFloat(process.env.BTC_TO_SOL_RATE || '0.01');
           const solAmount = btcAmount * btcToSolRate;
           logger.info(`   User received: ${solAmount} SOL (TEST MODE)`);
         } else {
-          logger.info(`   User received: ${usdcAmount} ${outputTokenMint ? 'tokens' : 'USDC'}`);
+          logger.info(`   User received: $${usdcAmount.toFixed(2)} ${outputTokenMint ? 'tokens' : 'USDC'}`);
         }
 
         return {
           success: true,
           btcAmount,
+          grossAmountUSD: grossUsdcAmount,
           usdcAmount: testMode ? null : usdcAmount,
           solAmount: testMode ? (btcAmount * parseFloat(process.env.BTC_TO_SOL_RATE || '0.01')) : null,
           outputToken: testMode ? 'SOL' : ((outputMint || this.getUSDCMint()).toBase58()),
           swapSignature: swapResult.signature,
           bitcoinTxHash: payment.txHash,
           testMode: testMode,
+          // Fee information
+          fee: {
+            amountUSD: feeCalculation.totalFeeUSD,
+            percentEffective: feeCalculation.feePercentEffective,
+            tier: feeCalculation.tierName,
+            breakdown: feeCalculation.breakdown,
+          },
         };
 
       } catch (error) {

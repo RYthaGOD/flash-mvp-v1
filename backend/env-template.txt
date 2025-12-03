@@ -203,3 +203,47 @@ BOOTSTRAP_BTC=0
 # Bootstrap SOL reserve (for testing)
 BOOTSTRAP_SOL=0
 
+# =============================================================================
+# 💰 FEE CONFIGURATION - REVENUE GENERATION
+# =============================================================================
+# These settings control how fees are collected from bridge transactions
+# All fees are optional - set FEE_RECIPIENT_ADDRESS to enable collection
+
+# [REQUIRED FOR REVENUE] Solana address to receive collected fees
+# Generate a new keypair and fund it with some SOL for rent
+FEE_RECIPIENT_ADDRESS=
+
+# Base bridge fee (percentage of transaction)
+# 0.003 = 0.3%, 0.005 = 0.5%, etc.
+BRIDGE_FEE_PERCENT=0.003
+
+# Privacy premium for Arcium MPC encrypted transactions
+# Additional fee for privacy features
+PRIVACY_FEE_PERCENT=0.001
+
+# Fast processing fee (1 confirmation vs 3+)
+# Premium for faster transaction confirmation
+FAST_PROCESSING_FEE_PERCENT=0.002
+
+# Minimum fee in USD (protects against dust attacks)
+MIN_FEE_USD=1.00
+
+# Maximum fee cap in USD (ensures fair pricing for large transactions)
+MAX_FEE_USD=500.00
+
+# Referral program fee split
+# Percentage given to referral partners
+REFERRAL_FEE_PERCENT=0.0005
+
+# =============================================================================
+# PRICING CONFIGURATION
+# =============================================================================
+# BTC to USD conversion rate (update regularly or use oracle)
+BTC_TO_USDC_RATE=100000
+
+# BTC to SOL rate for test mode
+BTC_TO_SOL_RATE=0.01
+
+# Enable test mode (sends SOL instead of swapping)
+BTC_TEST_MODE=false
+

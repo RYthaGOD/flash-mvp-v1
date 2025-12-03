@@ -41,20 +41,41 @@ const logger = createLogger('bridge-routes');
 /**
  * Claim BTC deposits after monitoring detects them
  * POST /api/bridge/btc-deposit
- * Body: { solanaAddress, bitcoinTxHash, outputTokenMint? }
+ * Body: { 
+ *   solanaAddress, 
+ *   bitcoinTxHash, 
+ *   outputTokenMint?,
+ *   tier?: 'basic' | 'fast' | 'private' | 'premium',
+ *   usePrivacy?: boolean,
+ *   referralCode?: string
+ * }
  */
 router.post('/btc-deposit', walletBridgeLimiter, requireClientSignature, asyncHandler(async (req, res) => {
-  const { solanaAddress, bitcoinTxHash, outputTokenMint } = req.body;
+  const { 
+    solanaAddress, 
+    bitcoinTxHash, 
+    outputTokenMint,
+    tier = 'basic',
+    usePrivacy = false,
+    referralCode = null
+  } = req.body;
 
   if (!solanaAddress || !bitcoinTxHash) {
     throw new APIError(400, 'solanaAddress and bitcoinTxHash are required');
+  }
+
+  // Validate tier
+  const validTiers = ['basic', 'fast', 'private', 'premium'];
+  if (!validTiers.includes(tier)) {
+    throw new APIError(400, `Invalid tier. Must be one of: ${validTiers.join(', ')}`);
   }
 
   try {
     const result = await btcDepositHandler.handleBTCDeposit(
       { txHash: bitcoinTxHash },
       solanaAddress,
-      outputTokenMint || null
+      outputTokenMint || null,
+      { tier, usePrivacy, referralCode }
     );
 
     res.json({
